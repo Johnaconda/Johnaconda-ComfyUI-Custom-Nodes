@@ -5,4 +5,4 @@ Most of my work is made by the help of ChatGPT 5. i come up with neat ideas and 
 # prompt_combiner_node.py
 This is a Prompt combiner where it takes above string and second string and add them together.
 it's a basic string combiner that allows me to add positives on top and leave em there while i edit the second string field "what to make"
-![alt text] (https://raw.githubusercontent.com/Johnaconda/Johnaconda-ComfyUI-Custom-Nodes/refs/heads/main/Promptcombiner.png?raw=true)
+<img src="https://raw.githubusercontent.com/Johnaconda/Johnaconda-ComfyUI-Custom-Nodes/refs/heads/main/Promptcombiner.png?raw=true" alt="CombinerExample" title="Combiner preview usage">
