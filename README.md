@@ -31,4 +31,4 @@ this is a double node for merging models with a little more control, have fun wi
 
 <img src="https://raw.githubusercontent.com/Johnaconda/Johnaconda-ComfyUI-Custom-Nodes/refs/heads/main/images/merger2.png?raw=true" alt="merger" title="The merger">
 
-<img src="https://raw.githubusercontent.com/Johnaconda/Johnaconda-ComfyUI-Custom-Nodes/refs/heads/main/images/merger.png?raw=true" alt="merger workflow" title="merger workflow preview usage">
+<img src="https://raw.githubusercontent.com/Johnaconda/Johnaconda-ComfyUI-Custom-Nodes/refs/heads/main/images/Merger.png?raw=true" alt="merger workflow" title="merger workflow preview usage">
