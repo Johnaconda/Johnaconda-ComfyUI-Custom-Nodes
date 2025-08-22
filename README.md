@@ -23,3 +23,12 @@ fun to play around with even added some pre-defined modes when use-preset is tru
 and also a special_CFG interpritor/injector that also will change the outcome of the image!
 
 <img src="https://raw.githubusercontent.com/Johnaconda/Johnaconda-ComfyUI-Custom-Nodes/refs/heads/main/images/comfyuishowcase.png?raw=true" alt="CombinerExample" title="Combiner preview usage">
+
+
+# The SDXL Dual Model merger
+
+this is a double node for merging models with a little more control, have fun with it.
+
+<img src="https://raw.githubusercontent.com/Johnaconda/Johnaconda-ComfyUI-Custom-Nodes/refs/heads/main/images/merger2.png?raw=true" alt="merger" title="The merger">
+
+<img src="https://raw.githubusercontent.com/Johnaconda/Johnaconda-ComfyUI-Custom-Nodes/refs/heads/main/images/merger.png?raw=true" alt="merger workflow" title="merger workflow preview usage">
