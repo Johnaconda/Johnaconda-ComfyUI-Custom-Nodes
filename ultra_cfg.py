@@ -1,6 +1,5 @@
-# UltraCFG v2.1 — CFG-Focus (in-loop) for a single-run sampler
+# UltraCFG v2.2 — CFG-Focus (in-loop) for a single-run sampler
 # Purpose: keep a constant base CFG but allow a per-step "focus" nudge toward denoised x0 without reruns.
-# This approximates "in-run CFG shaping" and can enhance detail or stability depending on schedule.
 
 class UltraCFG:
     MODES = ["none", "linear", "cosine", "exp", "plateau", "late_bloom", "early_boost"]
@@ -21,6 +20,7 @@ class UltraCFG:
     RETURN_NAMES = ("special_cfg",)
     FUNCTION = "build"
     CATEGORY = "sampling/ultra/tweaks"
+    OUTPUT_NODE = False
     DESCRIPTION = "Base CFG + in-loop CFG-Focus schedule (no re-run)."
 
     def build(self, mode, base_cfg, focus_strength, focus_start, focus_end):
