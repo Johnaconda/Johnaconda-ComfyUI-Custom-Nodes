@@ -280,37 +280,90 @@ def _parse_hires_from_tuple(t: tuple) -> Optional[dict]:
     return None
 
 def _parse_scripts(script: Any):
-    """Accept single script, a chain (list/tuple), or None. Return (xy, hires)."""
+    """
+    Accepts:
+      - a single script object
+      - a chain (list/tuple) of script objects
+      - wrapped scripts: ("XY Plot", <xy_tuple>) or ("HighRes-Fix Script", <dict>)
+      - raw XY tuples (len >= 10; see Efficiency XY)
+      - raw HiRes dicts
+
+    Returns: (xy_tuple_or_None, hires_dict_or_None)
+    """
+    XY_NAMES = {"xy plot", "xyplot", "xy-plot"}
+    HIRES_NAMES = {"hires-fix", "highres-fix", "hires fix", "highres fix"}
+
+    def is_raw_xy_tuple(x):
+        if isinstance(x, tuple) and len(x) >= 10:
+            # Heuristic: X_type and Y_type should be strings
+            return isinstance(x[0], str) and isinstance(x[2], str)
+        return False
+
+    def unwrap_wrapped(x):
+        """
+        ("XY Plot", <xy_tuple>) -> ("xy", xy_tuple)
+        ("HighRes-Fix Script", <dict>) -> ("hires", dict)
+        Otherwise returns (None, None)
+        """
+        if isinstance(x, tuple) and len(x) >= 2 and isinstance(x[0], str):
+            tag = x[0].strip().lower()
+            payload = x[1]
+            if any(k in tag for k in XY_NAMES):
+                return ("xy", payload)
+            if any(k in tag for k in HIRES_NAMES):
+                return ("hires", payload)
+        return (None, None)
+
+    def is_hires_dict(x):
+        if not isinstance(x, dict):
+            return False
+        keys = {k.lower() for k in x.keys()}
+        # Be generous with aliases Efficiency nodes have used across versions
+        aliases = {"upscale_type", "upscale_by", "scale", "factor", "multiplier",
+                   "hires_steps", "steps", "denoise", "use_same_seed", "seed",
+                   "iterations", "pixel_upscaler", "latent_upscaler"}
+        return bool(keys & aliases)
+
     xy = None
     hires = None
 
-    def maybe_xy(obj):
-        if isinstance(obj, tuple) and len(obj) >= 10:
-            return obj
-        return None
+    def visit(obj):
+        nonlocal xy, hires
+        if obj is None:
+            return
+        # wrapped case
+        tag, payload = unwrap_wrapped(obj)
+        if tag == "xy":
+            if is_raw_xy_tuple(payload):
+                xy = payload
+            elif isinstance(payload, (list, tuple)) and is_raw_xy_tuple(payload[0]):
+                xy = payload[0]
+        elif tag == "hires":
+            if isinstance(payload, dict) and is_hires_dict(payload):
+                hires = payload
+            elif isinstance(payload, (list, tuple)):
+                for p in payload:
+                    if isinstance(p, dict) and is_hires_dict(p):
+                        hires = p
+                        break
+            return  # done with wrapped case
 
-    def maybe_hires(obj):
-        if _looks_like_hires_dict(obj):
-            return obj
-        if isinstance(obj, tuple):
-            return _parse_hires_from_tuple(obj)
-        return None
+        # raw xy
+        if xy is None and is_raw_xy_tuple(obj):
+            xy = obj
+            return
 
-    if script is None:
-        return (None, None)
+        # raw hires dict
+        if hires is None and is_hires_dict(obj):
+            hires = obj
+            return
 
-    if isinstance(script, (list, tuple)) and not (isinstance(script, tuple) and len(script) >= 10):
-        for obj in script:
-            if xy is None:
-                xyc = maybe_xy(obj)
-                if xyc is not None: xy = xyc
-            if hires is None:
-                hrc = maybe_hires(obj)
-                if hrc is not None: hires = hrc
-        return (xy, hires)
+        # chain: list/tuple of possibly mixed items
+        if isinstance(obj, (list, tuple)):
+            for it in obj:
+                visit(it)
 
-    xy = maybe_xy(script)
-    hires = maybe_hires(script)
+    visit(script)
     return (xy, hires)
 
 def _round_to_multiple(v: int, m: int) -> int:
@@ -341,45 +394,98 @@ def _pixel_upscale(img: torch.Tensor, ph: int, pw: int) -> torch.Tensor:
 def _apply_hires(model, vae, positive, negative, cfg_like: float,
                  sampler_name: str, scheduler: str, base_denoise: float,
                  latent_dict: Dict, seed: int, hires_conf: dict) -> Dict:
+    """
+    Runs hires upscaling (latent/pixel/both) then a short refine pass.
+    Accepts multiple key aliases like scale/factor/multiplier, steps/hires_steps, etc.
+    """
     if not isinstance(hires_conf, dict):
         return latent_dict
 
-    upscale_type = str(hires_conf.get("upscale_type", "latent")).lower()
-    scale = float(hires_conf.get("upscale_by", 1.5))
-    hires_steps = int(hires_conf.get("hires_steps", max(1, int(12))))
-    denoise = float(hires_conf.get("denoise", base_denoise))
-    use_same_seed = bool(hires_conf.get("use_same_seed", True))
-    seed2 = int(hires_conf.get("seed", seed if use_same_seed else (seed + 1)))
-    iterations = max(1, int(hires_conf.get("iterations", 1)))
+    # --- normalize incoming config (support multiple key names) ---
+    def pick(d, *names, default=None, cast=lambda x: x):
+        for n in names:
+            # exact key
+            if n in d:
+                try:
+                    return cast(d[n])
+                except Exception:
+                    return default
+            # lowercase alias
+            ln = n.lower()
+            if ln in d:
+                try:
+                    return cast(d[ln])
+                except Exception:
+                    return default
+        return default
+
+    upscale_type = str(pick(hires_conf, "upscale_type", default="latent")).lower()
+    if upscale_type not in ("latent", "pixel", "both"):
+        upscale_type = "latent"
+
+    # scale: allow aliases; enforce sane value
+    scale = pick(hires_conf, "upscale_by", "scale", "factor", "multiplier",
+                 default=1.5, cast=float)
+    try:
+        scale = float(scale)
+        if not math.isfinite(scale) or scale <= 0:
+            scale = 1.5
+    except Exception:
+        scale = 1.5
+
+    hires_steps = max(1, int(pick(hires_conf, "hires_steps", "steps", default=12, cast=int)))
+    denoise = float(pick(hires_conf, "denoise", default=base_denoise, cast=float))
+
+    # booleans can come as "true"/"1"/1 etc.
+    def to_bool(v):
+        if isinstance(v, bool): return v
+        if isinstance(v, (int, float)): return v != 0
+        if isinstance(v, str): return v.strip().lower() in ("1", "true", "yes", "y", "on")
+        return bool(v)
+
+    use_same_seed = to_bool(pick(hires_conf, "use_same_seed", default=True, cast=to_bool))
+    seed2 = int(pick(hires_conf, "seed", default=(seed if use_same_seed else (seed + 1)), cast=int))
+    iterations = max(1, int(pick(hires_conf, "iterations", default=1, cast=int)))
+
+    # FYI: external upscaler names are ignored (safe fallback)
+    if any(k in hires_conf for k in ("pixel_upscaler", "latent_upscaler")):
+        print("[UltraDuperSampler][HiRes] External upscaler requested; falling back to built-in interpolate/VAE path.")
+
+    print(f"[UltraDuperSampler][HiRes] type={upscale_type} scale={scale} steps={hires_steps} denoise={denoise} its={iterations} seed={seed2}")
 
     device = getattr(model, "load_device", torch.device("cuda" if torch.cuda.is_available() else "cpu"))
     lat = _fix_latent(model, latent_dict["samples"])
 
     for it in range(iterations):
+        # 1) Pixel upscaling (decode -> resize -> encode) if requested
         if "pixel" in upscale_type:
             if vae is None:
-                print("[UltraDuperSampler][HiRes] pixel upscaling requested but no VAE connected; falling back to latent-only.")
+                print("[UltraDuperSampler][HiRes] pixel mode requested but no VAE connected; falling back to latent-only.")
             else:
                 ph, pw = _pixel_size_from_scale(lat, vae, scale)
                 try:
-                    decoded = vae.decode(lat)["images"]
-                except Exception:
-                    decoded = vae.decode(lat)
-                if isinstance(decoded, torch.Tensor):
-                    decoded = decoded.clamp(0, 1)
-                    up = _pixel_upscale(decoded, ph, pw)
+                    dec = vae.decode(lat)
+                    img = dec["images"] if isinstance(dec, dict) else dec
+                except Exception as e:
+                    print(f"[UltraDuperSampler][HiRes] VAE decode failed: {e}")
+                    img = None
+                if isinstance(img, torch.Tensor):
+                    img = img.clamp(0, 1)
+                    up = _pixel_upscale(img, ph, pw)
                     try:
-                        enc = vae.encode(up)["samples"]
-                    except Exception:
                         enc = vae.encode(up)
-                    lat = enc
+                        lat = enc["samples"] if isinstance(enc, dict) else enc
+                    except Exception as e:
+                        print(f"[UltraDuperSampler][HiRes] VAE encode failed: {e}")
                 else:
                     print("[UltraDuperSampler][HiRes] VAE decode did not return tensor; skipping pixel stage.")
 
+        # 2) Latent upscaling if requested (or as the only mode)
         if "latent" in upscale_type:
             nh, nw = _latent_size_from_scale(lat, scale)
             lat = _latent_upscale(lat, nh, nw)
 
+        # 3) Short refine pass at high-res
         base_cb = latent_preview.prepare_callback(model, hires_steps)
         ks = comfy.samplers.KSampler(
             model, steps=int(hires_steps), device=device,
@@ -606,12 +712,13 @@ class UltraDuperSampler:
                 )
 
             if isinstance(hires_conf, dict) or (isinstance(hires_conf, tuple) and _parse_hires_from_tuple(hires_conf)):
+                print("[UltraDuperSampler] HiRes script detected; applying second pass.")
                 hc = hires_conf if isinstance(hires_conf, dict) else _parse_hires_from_tuple(hires_conf)
                 out_dict = _apply_hires(
                     model=model, vae=vae, positive=positive, negative=negative, cfg_like=_cfg_v,
                     sampler_name=_sampler, scheduler=_sched, base_denoise=_denoise,
                     latent_dict=out_dict, seed=_seed, hires_conf=hc
-                )
+    )
 
             return out_dict["samples"]
 
@@ -639,7 +746,7 @@ class UltraDuperSampler:
                     if isinstance(images, torch.Tensor):
                         return images.clamp(0, 1)
                 except Exception as e:
-                    print(f("[UltraDuperSampler] VAE decode failed: {e}"))
+                    print(f"[UltraDuperSampler] VAE decode failed: {e}")
                 return None
 
             if not (isinstance(xy_tuple, tuple) and len(xy_tuple) >= 10):
