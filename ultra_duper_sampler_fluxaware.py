@@ -1,4 +1,4 @@
-# Ultra Duper Sampler — v2.8
+# Ultra Duper Sampler — v2.8.1
 # Flux-aware + Efficiency XY + HiRes-Fix + IMAGE & VAE outputs
 #
 # - v2.3: purge_vram + TF32 toggle + tiny grid cache
@@ -6,6 +6,7 @@
 # - v2.6: accepts Efficiency XY-Plot "script" and runs X×Y sweeps
 # - v2.7: accepts Efficiency HiRes-Fix script (dict/tuple) and runs 2nd-pass upscale+refine
 # - v2.8: optional IMAGE decode + VAE passthrough outputs (latent, image, vae)
+# - v2.8.1: **SCRIPT** input for Efficiency compatibility + **xy_script** fallback
 #
 # ComfyUI ≥ 0.3.5x compatible.
 
@@ -22,6 +23,7 @@ import comfy.samplers
 import comfy.sample
 import comfy.utils
 import latent_preview
+
 
 # -------------------------- utils & housekeeping --------------------------
 
@@ -339,9 +341,6 @@ def _pixel_upscale(img: torch.Tensor, ph: int, pw: int) -> torch.Tensor:
 def _apply_hires(model, vae, positive, negative, cfg_like: float,
                  sampler_name: str, scheduler: str, base_denoise: float,
                  latent_dict: Dict, seed: int, hires_conf: dict) -> Dict:
-    """
-    Runs hires upscaling (latent/pixel/both) then a short refine pass.
-    """
     if not isinstance(hires_conf, dict):
         return latent_dict
 
@@ -357,7 +356,6 @@ def _apply_hires(model, vae, positive, negative, cfg_like: float,
     lat = _fix_latent(model, latent_dict["samples"])
 
     for it in range(iterations):
-        # 1) Upscale latent and/or pixel
         if "pixel" in upscale_type:
             if vae is None:
                 print("[UltraDuperSampler][HiRes] pixel upscaling requested but no VAE connected; falling back to latent-only.")
@@ -382,7 +380,6 @@ def _apply_hires(model, vae, positive, negative, cfg_like: float,
             nh, nw = _latent_size_from_scale(lat, scale)
             lat = _latent_upscale(lat, nh, nw)
 
-        # 2) Short refine pass at high-res
         base_cb = latent_preview.prepare_callback(model, hires_steps)
         ks = comfy.samplers.KSampler(
             model, steps=int(hires_steps), device=device,
@@ -400,16 +397,17 @@ def _apply_hires(model, vae, positive, negative, cfg_like: float,
     out["samples"] = lat
     return out
 
+
 # -------------------------- main engine --------------------------
 
 class UltraDuperSampler:
     """
-    Ultra Duper Sampler (Flux-aware v2.8)
+    Ultra Duper Sampler (Flux-aware v2.8.1)
     - purge_vram + interrupt-safe purge
     - allow_tf32 toggle (Ampere+)
     - dynamic sweep scaling + step weighting + start_noise kick
     - arrays-aware sweeps (strengths/grains)
-    - XY-Plot compatible (Efficiency tuple)
+    - XY-Plot compatible (Efficiency SCRIPT / XY fallback)
     - HiRes-Fix compatible (dict/tuple), including stacked with XY
     - NEW: emits (LATENT, IMAGE, VAE) — image decode is opt-in (emit_image)
     """
@@ -437,13 +435,14 @@ class UltraDuperSampler:
                 "vae": ("VAE", {}),              # required for emit_image & pixel upscaling
                 "special_cfg": ("DICT", {}),     # UltraCFG dict
                 "special_noise": ("DICT", {}),   # Ultra Noise Sweeps dict
-                "script": ("XY", {}),            # XY tuple or a chain [XY, HiRes, ...]
+                # Efficiency compatibility:
+                "script": ("SCRIPT", {}),        # primary (matches Efficiency output type)
+                "xy_script": ("XY", {}),         # fallback for old graphs (raw XY tuple)
                 "xy_preview_grid": ("BOOLEAN", {"default": False, "tooltip": "If VAE is connected, show a simple XY grid preview in the UI."}),
                 "emit_image": ("BOOLEAN", {"default": True, "tooltip": "Decode and return IMAGE as second output (requires VAE)."}),
             }
         }
 
-    # NEW: three outputs to mirror Efficiency node ergonomics
     RETURN_TYPES = ("LATENT", "IMAGE", "VAE")
     RETURN_NAMES = ("latent", "image", "vae")
     FUNCTION = "run"
@@ -456,7 +455,7 @@ class UltraDuperSampler:
         sampler_name, scheduler, denoise, seed, start_noise, skip_tail, auto_flux_detect,
         purge_vram, allow_tf32,
         special_cfg=None, special_noise=None,
-        script=None, vae=None, xy_preview_grid=False, emit_image=True
+        script=None, xy_script=None, vae=None, xy_preview_grid=False, emit_image=True
     ):
         steps = int(steps)
         skip_tail = max(0, min(int(skip_tail), max(0, steps - 1)))
@@ -465,7 +464,6 @@ class UltraDuperSampler:
         device = getattr(model, "load_device", torch.device("cuda" if torch.cuda.is_available() else "cpu"))
         is_flux = bool(auto_flux_detect) and _is_flux_model(model)
 
-        # Base latent/noise templates (for single run)
         latent_img0 = _fix_latent(model, latent["samples"])
         base_noise0 = _prepare_noise(model, {"samples": latent_img0, "batch_index": latent.get("batch_index")}, seed).to(device)
         base_noise0 = base_noise0 * float(start_noise)
@@ -474,10 +472,8 @@ class UltraDuperSampler:
 
         # ---------- Prepare sweeps ----------
         sweep = special_noise if isinstance(special_noise, dict) else None
-        sweep_std0 = float(base_noise0.std()) + 1e-6
         base_pattern = "gaussian"
         post_tail_steps = None
-
         impact = 1.0
         step_weighting = "flat"
         dynamic_scale = True
@@ -486,7 +482,6 @@ class UltraDuperSampler:
         if sweep:
             base_pattern = str(sweep.get("noise_pattern", "gaussian"))
             post_tail_steps = sweep.get("post_tail_steps", None)
-
             strengths_arr = sweep.get("strengths")
             grains_arr = sweep.get("grains")
             start_step = int(max(0, sweep.get("start_step", 0)))
@@ -496,11 +491,7 @@ class UltraDuperSampler:
             if not isinstance(strengths_arr, list):
                 first = float(sweep.get("first_strength", 0.0))
                 auto_dec = bool(sweep.get("auto_decrease", True))
-                if auto_dec and n > 1:
-                    stepdown = first / n
-                    strengths_arr = [max(0.0, first - k * stepdown) for k in range(n)]
-                else:
-                    strengths_arr = [max(0.0, first)] * n
+                strengths_arr = [max(0.0, first - k * (first / n)) for k in range(n)] if auto_dec and n > 1 else [max(0.0, first)] * n
 
             if not isinstance(grains_arr, list):
                 profile = str(sweep.get("grain_profile", sweep.get("grain_scheme", "balanced")))
@@ -523,7 +514,6 @@ class UltraDuperSampler:
             m = min(len(strengths_arr), len(grains_arr), n)
             triggers = [min(total_steps - 1, max(0, start_step + k * gap)) for k in range(m)]
             sweep_map_template = {triggers[i]: (float(strengths_arr[i]), str(grains_arr[i])) for i in range(m)}
-
             impact = float(sweep.get("impact", 1.0))
             step_weighting = str(sweep.get("step_weighting", "flat"))
             dynamic_scale = bool(sweep.get("dynamic_scale", True))
@@ -538,7 +528,8 @@ class UltraDuperSampler:
         focus_curve_template = _cfg_focus_curve(focus_mode, total_steps, focus_start, focus_end, focus_strength)
 
         # ---------- parse scripts (XY + HiRes) ----------
-        xy_tuple, hires_conf = _parse_scripts(script)
+        script_obj = script if script is not None else xy_script
+        xy_tuple, hires_conf = _parse_scripts(script_obj)
 
         # ---------- helpers ----------
         def _step_weight(i: int, total: int, mode: str) -> float:
@@ -557,7 +548,6 @@ class UltraDuperSampler:
             return 1.0
 
         def _run_single(params: dict):
-            """Run one base sampling; return LATENT dict. HiRes (if any) applied after."""
             _steps = int(params.get("steps", total_steps))
             _cfg_v = float(params.get("cfg", base_cfg))
             _sampler = str(params.get("sampler_name", sampler_name))
@@ -607,7 +597,6 @@ class UltraDuperSampler:
             out_dict = dict(latent)
             out_dict["samples"] = out_samples
 
-            # Optional POST refine (original sweeps "post" mode)
             if sweep and sweep.get("mode", "during") != "during":
                 out_dict = _post_refine(
                     model=model, current_latent=out_dict, steps=_steps, cfg_like=_cfg_v,
@@ -616,7 +605,6 @@ class UltraDuperSampler:
                     base_noise=base_noise, tail_steps=post_tail_steps,
                 )
 
-            # Optional HiRes pass
             if isinstance(hires_conf, dict) or (isinstance(hires_conf, tuple) and _parse_hires_from_tuple(hires_conf)):
                 hc = hires_conf if isinstance(hires_conf, dict) else _parse_hires_from_tuple(hires_conf)
                 out_dict = _apply_hires(
@@ -627,7 +615,6 @@ class UltraDuperSampler:
 
             return out_dict["samples"]
 
-        # ---------- XY sweep or single ----------
         interrupted = False
         prev_tf32_matmul = None
         prev_tf32_cudnn = None
@@ -640,7 +627,6 @@ class UltraDuperSampler:
                 torch.backends.cuda.matmul.allow_tf32 = True
                 torch.backends.cudnn.allow_tf32 = True
 
-            # Helper to decode images when requested
             def _decode_images(latent_tensor):
                 if not bool(emit_image):
                     return None
@@ -653,19 +639,16 @@ class UltraDuperSampler:
                     if isinstance(images, torch.Tensor):
                         return images.clamp(0, 1)
                 except Exception as e:
-                    print(f"[UltraDuperSampler] VAE decode failed: {e}")
+                    print(f("[UltraDuperSampler] VAE decode failed: {e}"))
                 return None
 
             if not (isinstance(xy_tuple, tuple) and len(xy_tuple) >= 10):
-                # Single run
                 params = {
                     "steps": total_steps, "cfg": base_cfg, "sampler_name": sampler_name,
                     "scheduler": scheduler, "denoise": denoise, "seed": seed
                 }
                 out_samples = _run_single(params)
-                out = dict(latent)
-                out["samples"] = out_samples
-
+                out = dict(latent); out["samples"] = out_samples
                 images = _decode_images(out_samples)
 
                 if is_flux:
@@ -699,15 +682,10 @@ class UltraDuperSampler:
                     except Exception as e:
                         print(f"[UltraDuperSampler][XY] VAE preview failed: {e}")
 
-            # Concatenate batch
             cat = torch.cat(batch_samples, dim=0) if len(batch_samples) > 1 else batch_samples[0]
-            out = dict(latent)
-            out["samples"] = cat
-
-            # Optional decode for output IMAGE
+            out = dict(latent); out["samples"] = cat
             images = _decode_images(cat)
 
-            # Simple UI grid (optional)
             ui = {}
             if vae is not None and bool(xy_preview_grid) and ui_images:
                 try:
@@ -759,4 +737,4 @@ class UltraDuperSampler:
 
 
 NODE_CLASS_MAPPINGS = {"UltraDuperSampler": UltraDuperSampler}
-NODE_DISPLAY_NAME_MAPPINGS = {"UltraDuperSampler": "Ultra Duper Sampler (Flux-aware v2.8)"}
+NODE_DISPLAY_NAME_MAPPINGS = {"UltraDuperSampler": "Ultra Duper Sampler (Flux-aware v2.8.1)"}
