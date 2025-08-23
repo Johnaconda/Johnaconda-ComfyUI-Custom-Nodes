@@ -22,6 +22,8 @@ this node injects noise in the sampling process tricking the model there is even
 fun to play around with even added some pre-defined modes when use-preset is true it overrides user defined settings
 and also a special_CFG interpritor/injector that also will change the outcome of the image!
 
+Added support for Scripts xy-plot and hires from https://github.com/jags111/efficiency-nodes-comfyui aswell.
+
 <img src="https://raw.githubusercontent.com/Johnaconda/Johnaconda-ComfyUI-Custom-Nodes/refs/heads/main/images/comfyuishowcase.png?raw=true" alt="CombinerExample" title="Combiner preview usage">
 
 
