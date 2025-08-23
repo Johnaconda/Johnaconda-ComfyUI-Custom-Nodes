@@ -1,12 +1,11 @@
-# Ultra Duper Sampler — v2.7 (Flux-aware + Efficiency XY + HiRes-Fix)
+# Ultra Duper Sampler — v2.8
+# Flux-aware + Efficiency XY + HiRes-Fix + IMAGE & VAE outputs
+#
 # - v2.3: purge_vram + TF32 toggle + tiny grid cache
 # - v2.5: dynamic sweep scaling, step weighting, visible start_noise kick, arrays-aware sweeps
 # - v2.6: accepts Efficiency XY-Plot "script" and runs X×Y sweeps
 # - v2.7: accepts Efficiency HiRes-Fix script (dict/tuple) and runs 2nd-pass upscale+refine
-#
-# Supported XY axis types: "CFG Scale", "Denoise", "Steps", "Scheduler", "Sampler", "Seed"
-# Supported HiRes fields (subset): upscale_type{latent|pixel|both}, upscale_by(float),
-#   hires_steps(int), denoise(float), use_same_seed(bool), seed(int), iterations(int,>=1).
+# - v2.8: optional IMAGE decode + VAE passthrough outputs (latent, image, vae)
 #
 # ComfyUI ≥ 0.3.5x compatible.
 
@@ -268,11 +267,9 @@ def _looks_like_hires_dict(x: Any) -> bool:
     if not isinstance(x, dict):
         return False
     keys = set(k.lower() for k in x.keys())
-    # minimal keys we rely on
     return ("upscale_type" in keys) or ("upscale_by" in keys) or ("hires_steps" in keys)
 
 def _parse_hires_from_tuple(t: tuple) -> Optional[dict]:
-    # Best-effort tuple support: some community forks output ("HiRes-Fix", { ... })
     if not isinstance(t, tuple) or len(t) < 2:
         return None
     tag = str(t[0]).lower()
@@ -310,7 +307,6 @@ def _parse_scripts(script: Any):
                 if hrc is not None: hires = hrc
         return (xy, hires)
 
-    # Single object
     xy = maybe_xy(script)
     hires = maybe_hires(script)
     return (xy, hires)
@@ -326,22 +322,17 @@ def _latent_size_from_scale(latent: torch.Tensor, scale: float) -> Tuple[int, in
 
 def _pixel_size_from_scale(latent: torch.Tensor, vae, scale: float) -> Tuple[int, int]:
     _, _, h, w = latent.shape
-    # latent is 1/8 of pixels for SD-family VAEs (typical)
     ph = int(round(h * 8 * float(scale)))
     pw = int(round(w * 8 * float(scale)))
-    # keep multiples of 8 (to re-encode cleanly)
     ph = _round_to_multiple(ph, 8)
     pw = _round_to_multiple(pw, 8)
     return ph, pw
 
 def _latent_upscale(latent: torch.Tensor, nh: int, nw: int) -> torch.Tensor:
-    # nearest-exact is sharp and cheap; good default for latent space
     return F.interpolate(latent, size=(nh, nw), mode="nearest-exact")
 
 def _pixel_upscale(img: torch.Tensor, ph: int, pw: int) -> torch.Tensor:
-    # img: (B,H,W,C) in 0..1; use bicubic (neutral) without specifying device dtype
-    # return shape preserved as (B,H,W,C)
-    img_nchw = img.movedim(-1, 1)              # (B,C,H,W)
+    img_nchw = img.movedim(-1, 1)
     up = F.interpolate(img_nchw, size=(ph, pw), mode="bicubic", align_corners=False)
     return up.movedim(1, -1).clamp(0, 1)
 
@@ -379,7 +370,6 @@ def _apply_hires(model, vae, positive, negative, cfg_like: float,
                 if isinstance(decoded, torch.Tensor):
                     decoded = decoded.clamp(0, 1)
                     up = _pixel_upscale(decoded, ph, pw)
-                    # re-encode to latent
                     try:
                         enc = vae.encode(up)["samples"]
                     except Exception:
@@ -414,13 +404,14 @@ def _apply_hires(model, vae, positive, negative, cfg_like: float,
 
 class UltraDuperSampler:
     """
-    Ultra Duper Sampler (Flux-aware v2.7)
+    Ultra Duper Sampler (Flux-aware v2.8)
     - purge_vram + interrupt-safe purge
     - allow_tf32 toggle (Ampere+)
     - dynamic sweep scaling + step weighting + start_noise kick
     - arrays-aware sweeps (strengths/grains)
     - XY-Plot compatible (Efficiency tuple)
-    - NEW: HiRes-Fix compatible (dict/tuple), including stacked with XY
+    - HiRes-Fix compatible (dict/tuple), including stacked with XY
+    - NEW: emits (LATENT, IMAGE, VAE) — image decode is opt-in (emit_image)
     """
     @classmethod
     def INPUT_TYPES(cls):
@@ -443,16 +434,18 @@ class UltraDuperSampler:
                 "allow_tf32": ("BOOLEAN", {"default": False, "tooltip": "Enable TF32 on matmul/cudnn (Ampere+). Can speed up FP32 models."}),
             },
             "optional": {
-                "vae": ("VAE", {}),              # optional, required for pixel upscaling & XY preview
+                "vae": ("VAE", {}),              # required for emit_image & pixel upscaling
                 "special_cfg": ("DICT", {}),     # UltraCFG dict
                 "special_noise": ("DICT", {}),   # Ultra Noise Sweeps dict
-                # Efficiency scripts:
                 "script": ("XY", {}),            # XY tuple or a chain [XY, HiRes, ...]
                 "xy_preview_grid": ("BOOLEAN", {"default": False, "tooltip": "If VAE is connected, show a simple XY grid preview in the UI."}),
+                "emit_image": ("BOOLEAN", {"default": True, "tooltip": "Decode and return IMAGE as second output (requires VAE)."}),
             }
         }
 
-    RETURN_TYPES = ("LATENT",)
+    # NEW: three outputs to mirror Efficiency node ergonomics
+    RETURN_TYPES = ("LATENT", "IMAGE", "VAE")
+    RETURN_NAMES = ("latent", "image", "vae")
     FUNCTION = "run"
     CATEGORY = "sampling/ultra"
     OUTPUT_NODE = False
@@ -463,7 +456,7 @@ class UltraDuperSampler:
         sampler_name, scheduler, denoise, seed, start_noise, skip_tail, auto_flux_detect,
         purge_vram, allow_tf32,
         special_cfg=None, special_noise=None,
-        script=None, vae=None, xy_preview_grid=False
+        script=None, vae=None, xy_preview_grid=False, emit_image=True
     ):
         steps = int(steps)
         skip_tail = max(0, min(int(skip_tail), max(0, steps - 1)))
@@ -647,6 +640,22 @@ class UltraDuperSampler:
                 torch.backends.cuda.matmul.allow_tf32 = True
                 torch.backends.cudnn.allow_tf32 = True
 
+            # Helper to decode images when requested
+            def _decode_images(latent_tensor):
+                if not bool(emit_image):
+                    return None
+                if vae is None:
+                    print("[UltraDuperSampler] emit_image=True but no VAE connected; skipping decode.")
+                    return None
+                try:
+                    dec = vae.decode(latent_tensor)
+                    images = dec["images"] if isinstance(dec, dict) else dec
+                    if isinstance(images, torch.Tensor):
+                        return images.clamp(0, 1)
+                except Exception as e:
+                    print(f"[UltraDuperSampler] VAE decode failed: {e}")
+                return None
+
             if not (isinstance(xy_tuple, tuple) and len(xy_tuple) >= 10):
                 # Single run
                 params = {
@@ -656,9 +665,12 @@ class UltraDuperSampler:
                 out_samples = _run_single(params)
                 out = dict(latent)
                 out["samples"] = out_samples
+
+                images = _decode_images(out_samples)
+
                 if is_flux:
                     print("[UltraDuperSampler] Flux detected. Treating 'cfg' as guidance. Typical guidance 1.5–4.0; steps 12–24.")
-                return (out,)
+                return (out, images, vae)
 
             # XY enabled
             X_type, X_val, Y_type, Y_val, grid_spacing, _y_orient, _cache_models, _xy_as_img, flip_xy, _deps = xy_tuple
@@ -692,6 +704,10 @@ class UltraDuperSampler:
             out = dict(latent)
             out["samples"] = cat
 
+            # Optional decode for output IMAGE
+            images = _decode_images(cat)
+
+            # Simple UI grid (optional)
             ui = {}
             if vae is not None and bool(xy_preview_grid) and ui_images:
                 try:
@@ -717,10 +733,11 @@ class UltraDuperSampler:
 
             if is_flux:
                 print("[UltraDuperSampler] Flux detected. Treating 'cfg' as guidance. Typical guidance 1.5–4.0; steps 12–24.")
+
             if ui:
-                return {"ui": ui, "result": (out,)}
+                return {"ui": ui, "result": (out, images, vae)}
             else:
-                return (out,)
+                return (out, images, vae)
 
         except BaseException:
             interrupted = True
@@ -742,4 +759,4 @@ class UltraDuperSampler:
 
 
 NODE_CLASS_MAPPINGS = {"UltraDuperSampler": UltraDuperSampler}
-NODE_DISPLAY_NAME_MAPPINGS = {"UltraDuperSampler": "Ultra Duper Sampler (Flux-aware v2.7)"}
+NODE_DISPLAY_NAME_MAPPINGS = {"UltraDuperSampler": "Ultra Duper Sampler (Flux-aware v2.8)"}
