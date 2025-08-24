@@ -1,20 +1,14 @@
-# Ultra Duper Sampler — v2.8.1
-# Flux-aware + Efficiency XY + HiRes-Fix + IMAGE & VAE outputs
-#
-# - v2.3: purge_vram + TF32 toggle + tiny grid cache
-# - v2.5: dynamic sweep scaling, step weighting, visible start_noise kick, arrays-aware sweeps
-# - v2.6: accepts Efficiency XY-Plot "script" and runs X×Y sweeps
-# - v2.7: accepts Efficiency HiRes-Fix script (dict/tuple) and runs 2nd-pass upscale+refine
-# - v2.8: optional IMAGE decode + VAE passthrough outputs (latent, image, vae)
-# - v2.8.1: **SCRIPT** input for Efficiency compatibility + **xy_script** fallback
-#
-# ComfyUI ≥ 0.3.5x compatible.
+# Ultra Duper Sampler — v3.2 (Ultra-only + Supersample→Downscale)
+# Fix: no align_corners for nearest/nearest-exact in interpolate (PyTorch error)
+# Order: latent → pixel → refine, do_pixel/do_latent flags
+# Pixel blur device/dtype-safe; refine pass always gets real noise
+# Final Output controls: keep_original / hires_size / custom (+ optional latent downscale)
 
 import math
 import random
 import gc
 from collections import OrderedDict
-from typing import Dict, List, Tuple, Optional, Any
+from typing import Dict, List, Optional
 
 import torch
 import torch.nn.functional as F
@@ -62,7 +56,8 @@ def _purge_vram(sync: bool = True):
     except Exception as e:
         print(f"[UltraDuperSampler] purge_vram failed: {e}")
 
-# -------------------------- tiny grid cache (wave/checker) --------------------------
+
+# -------------------------- tiny grid cache (used by noise patterns) --------------------------
 
 _GRID_CACHE = OrderedDict()  # key: (kind, h, w, device_str)
 _GRID_CACHE_MAX = 16
@@ -90,7 +85,8 @@ def _grid_get(kind: str, h: int, w: int, device: torch.device):
 def _grid_cache_clear():
     _GRID_CACHE.clear()
 
-# -------------------------- patterns & grain --------------------------
+
+# -------------------------- patterns & grain (Ultra Noise Sweeps) --------------------------
 
 PATTERNS = ["gaussian", "uniform", "perlin", "checker", "wave", "saltpepper", "hybrid"]
 
@@ -144,6 +140,7 @@ def _apply_grain(inj: torch.Tensor, level: str) -> torch.Tensor:
         return _std_normalize(inj + torch.randn_like(inj) * 0.25)
     return inj
 
+
 # -------------------------- CFG-Focus curve --------------------------
 
 def _cfg_focus_curve(mode: str, total_steps: int, start_s: int, end_s: int, strength: float) -> List[float]:
@@ -172,15 +169,15 @@ def _cfg_focus_curve(mode: str, total_steps: int, start_s: int, end_s: int, stre
         arr[i] = float(max(0.0, min(1.0, v * strength)))
     return arr
 
-# -------------------------- POST short-tail refine --------------------------
 
-def _compose_noise(base_noise: torch.Tensor, injected: torch.Tensor, alpha: float = 1.0) -> torch.Tensor:
+# -------------------------- Post refine (tail) --------------------------
+
+def _compose_noise(bn: torch.Tensor, inj: torch.Tensor, alpha: float = 1.0) -> torch.Tensor:
     if alpha <= 0.0:
-        return base_noise
-    bn = _std_normalize(base_noise)
-    inj = _std_normalize(injected)
-    composed = _std_normalize(bn + inj * float(alpha))
-    return composed
+        return bn
+    bn = _std_normalize(bn)
+    inj = _std_normalize(inj)
+    return _std_normalize(bn + inj * float(alpha))
 
 def _post_refine(
     model, current_latent: Dict, steps: int, cfg_like: float,
@@ -214,286 +211,252 @@ def _post_refine(
     del inj, composed, latent_img, ks, out
     return ret
 
-# -------------------------- XY helpers (Efficiency compatibility) --------------------------
 
-_XY_SUPPORTED = {"CFG Scale", "Denoise", "Steps", "Scheduler", "Sampler", "Seed"}
+# -------------------------- Ultra-only script parsing --------------------------
 
-def _xy_expand_axis(axis_type: str, axis_values):
-    if axis_values is None:
-        return []
-    if axis_type in ("CFG Scale", "Denoise"):
-        return [float(v) for v in axis_values]
-    if axis_type in ("Steps", "Seed"):
-        return [int(v) for v in axis_values]
-    if axis_type == "Scheduler":
-        return [str(v) for v in axis_values]
-    if axis_type == "Sampler":
-        return [(str(v[0]), str(v[1])) for v in axis_values]
-    return []
-
-def _xy_iter_pairs(X_type, X_vals, Y_type, Y_vals, flip_xy: bool):
-    X = list(enumerate(_xy_expand_axis(X_type, X_vals)))
-    Y = list(enumerate(_xy_expand_axis(Y_type, Y_vals)))
-    if not X: X = [(0, None)]
-    if not Y: Y = [(0, None)]
-    if flip_xy:
-        for yi, yv in Y:
-            for xi, xv in X:
-                yield (xi, xv, yi, yv)
-    else:
-        for xi, xv in X:
-            for yi, yv in Y:
-                yield (xi, xv, yi, yv)
-
-def _xy_apply_to_params(params: dict, axis_type: str, axis_value):
-    if axis_type not in _XY_SUPPORTED or axis_value is None:
-        return
-    if axis_type == "CFG Scale":
-        params["cfg"] = float(axis_value)
-    elif axis_type == "Denoise":
-        params["denoise"] = float(axis_value)
-    elif axis_type == "Steps":
-        params["steps"] = int(axis_value)
-    elif axis_type == "Seed":
-        params["seed"] = int(axis_value)
-    elif axis_type == "Scheduler":
-        params["scheduler"] = str(axis_value)
-    elif axis_type == "Sampler":
-        sampler, scheduler = axis_value
-        params["sampler_name"] = str(sampler)
-        params["scheduler"] = str(scheduler)
-
-# -------------------------- HiRes-Fix helpers (Efficiency compatibility) --------------------------
-
-def _looks_like_hires_dict(x: Any) -> bool:
-    if not isinstance(x, dict):
-        return False
-    keys = set(k.lower() for k in x.keys())
-    return ("upscale_type" in keys) or ("upscale_by" in keys) or ("hires_steps" in keys)
-
-def _parse_hires_from_tuple(t: tuple) -> Optional[dict]:
-    if not isinstance(t, tuple) or len(t) < 2:
+def _parse_ultra_hires(script_obj):
+    if script_obj is None:
         return None
-    tag = str(t[0]).lower()
-    if "hires" in tag and isinstance(t[1], dict):
-        return t[1]
+    if isinstance(script_obj, tuple) and len(script_obj) >= 2 and isinstance(script_obj[0], str):
+        tag = script_obj[0].strip().lower()
+        if "ultra hires" in tag and isinstance(script_obj[1], dict):
+            return script_obj[1]
+    if isinstance(script_obj, dict):
+        return script_obj
     return None
 
-def _parse_scripts(script: Any):
-    """
-    Accepts:
-      - a single script object
-      - a chain (list/tuple) of script objects
-      - wrapped scripts: ("XY Plot", <xy_tuple>) or ("HighRes-Fix Script", <dict>)
-      - raw XY tuples (len >= 10; see Efficiency XY)
-      - raw HiRes dicts
 
-    Returns: (xy_tuple_or_None, hires_dict_or_None)
-    """
-    XY_NAMES = {"xy plot", "xyplot", "xy-plot"}
-    HIRES_NAMES = {"hires-fix", "highres-fix", "hires fix", "highres fix"}
-
-    def is_raw_xy_tuple(x):
-        if isinstance(x, tuple) and len(x) >= 10:
-            # Heuristic: X_type and Y_type should be strings
-            return isinstance(x[0], str) and isinstance(x[2], str)
-        return False
-
-    def unwrap_wrapped(x):
-        """
-        ("XY Plot", <xy_tuple>) -> ("xy", xy_tuple)
-        ("HighRes-Fix Script", <dict>) -> ("hires", dict)
-        Otherwise returns (None, None)
-        """
-        if isinstance(x, tuple) and len(x) >= 2 and isinstance(x[0], str):
-            tag = x[0].strip().lower()
-            payload = x[1]
-            if any(k in tag for k in XY_NAMES):
-                return ("xy", payload)
-            if any(k in tag for k in HIRES_NAMES):
-                return ("hires", payload)
-        return (None, None)
-
-    def is_hires_dict(x):
-        if not isinstance(x, dict):
-            return False
-        keys = {k.lower() for k in x.keys()}
-        # Be generous with aliases Efficiency nodes have used across versions
-        aliases = {"upscale_type", "upscale_by", "scale", "factor", "multiplier",
-                   "hires_steps", "steps", "denoise", "use_same_seed", "seed",
-                   "iterations", "pixel_upscaler", "latent_upscaler"}
-        return bool(keys & aliases)
-
-    xy = None
-    hires = None
-
-    def visit(obj):
-        nonlocal xy, hires
-        if obj is None:
-            return
-        # wrapped case
-        tag, payload = unwrap_wrapped(obj)
-        if tag == "xy":
-            if is_raw_xy_tuple(payload):
-                xy = payload
-            elif isinstance(payload, (list, tuple)) and is_raw_xy_tuple(payload[0]):
-                xy = payload[0]
-        elif tag == "hires":
-            if isinstance(payload, dict) and is_hires_dict(payload):
-                hires = payload
-            elif isinstance(payload, (list, tuple)):
-                for p in payload:
-                    if isinstance(p, dict) and is_hires_dict(p):
-                        hires = p
-                        break
-            return  # done with wrapped case
-
-        # raw xy
-        if xy is None and is_raw_xy_tuple(obj):
-            xy = obj
-            return
-
-        # raw hires dict
-        if hires is None and is_hires_dict(obj):
-            hires = obj
-            return
-
-        # chain: list/tuple of possibly mixed items
-        if isinstance(obj, (list, tuple)):
-            for it in obj:
-                visit(it)
-
-    visit(script)
-    return (xy, hires)
-
-def _round_to_multiple(v: int, m: int) -> int:
-    return int((v + m - 1) // m) * m
-
-def _latent_size_from_scale(latent: torch.Tensor, scale: float) -> Tuple[int, int]:
-    _, _, h, w = latent.shape
-    nh = max(1, int(round(h * float(scale))))
-    nw = max(1, int(round(w * float(scale))))
-    return nh, nw
-
-def _pixel_size_from_scale(latent: torch.Tensor, vae, scale: float) -> Tuple[int, int]:
-    _, _, h, w = latent.shape
-    ph = int(round(h * 8 * float(scale)))
-    pw = int(round(w * 8 * float(scale)))
-    ph = _round_to_multiple(ph, 8)
-    pw = _round_to_multiple(pw, 8)
-    return ph, pw
-
-def _latent_upscale(latent: torch.Tensor, nh: int, nw: int) -> torch.Tensor:
-    return F.interpolate(latent, size=(nh, nw), mode="nearest-exact")
-
-def _pixel_upscale(img: torch.Tensor, ph: int, pw: int) -> torch.Tensor:
-    img_nchw = img.movedim(-1, 1)
-    up = F.interpolate(img_nchw, size=(ph, pw), mode="bicubic", align_corners=False)
-    return up.movedim(1, -1).clamp(0, 1)
+# -------------------------- Ultra HiRes core --------------------------
 
 def _apply_hires(model, vae, positive, negative, cfg_like: float,
                  sampler_name: str, scheduler: str, base_denoise: float,
                  latent_dict: Dict, seed: int, hires_conf: dict) -> Dict:
-    """
-    Runs hires upscaling (latent/pixel/both) then a short refine pass.
-    Accepts multiple key aliases like scale/factor/multiplier, steps/hires_steps, etc.
-    """
     if not isinstance(hires_conf, dict):
         return latent_dict
 
-    # --- normalize incoming config (support multiple key names) ---
+    # ---------- helpers ----------
     def pick(d, *names, default=None, cast=lambda x: x):
         for n in names:
-            # exact key
             if n in d:
-                try:
-                    return cast(d[n])
-                except Exception:
-                    return default
-            # lowercase alias
+                try: return cast(d[n])
+                except Exception: return default
             ln = n.lower()
             if ln in d:
-                try:
-                    return cast(d[ln])
-                except Exception:
-                    return default
+                try: return cast(d[ln])
+                except Exception: return default
         return default
 
+    def _round8(v: int) -> int:
+        return max(8, int((v + 7) // 8) * 8)
+
+    def _latent_up(lat, nh, nw, mode: str):
+        mode = str(mode or "nearest-exact")
+        if mode in ("nearest", "nearest-exact"):
+            return F.interpolate(lat, size=(int(nh), int(nw)), mode="nearest-exact")
+        elif mode in ("bilinear", "bicubic"):
+            return F.interpolate(lat, size=(int(nh), int(nw)), mode=mode, align_corners=False)
+        else:
+            return F.interpolate(lat, size=(int(nh), int(nw)), mode="nearest-exact")
+
+    def _pixel_up(img_bhwc, ph, pw, mode: str):
+        mode = str(mode or "bicubic")
+        nchw = img_bhwc.movedim(-1, 1)
+        if mode == "nearest":
+            up = F.interpolate(nchw, size=(int(ph), int(pw)), mode="nearest")
+        elif mode in ("bilinear", "bicubic"):
+            up = F.interpolate(nchw, size=(int(ph), int(pw)), mode=mode, align_corners=False)
+        else:
+            up = F.interpolate(nchw, size=(int(ph), int(pw)), mode="bicubic", align_corners=False)
+        return up.movedim(1, -1).clamp(0, 1)
+
+    # Device/dtype-safe blur & beautify
+    def _gauss_kernel1d(sigma: float, device, dtype):
+        sigma = max(0.2, float(sigma))
+        k = int(max(3, round(sigma * 6)) // 2 * 2 + 1)
+        c = (k - 1) / 2
+        x = torch.arange(k, device=device, dtype=dtype) - c
+        w = torch.exp(-(x**2) / (2 * sigma * sigma))
+        w = w / w.sum()
+        return w.view(1, 1, -1)
+
+    def _gaussian_blur(img_bhwc, sigma: float):
+        if sigma <= 0.0:
+            return img_bhwc
+        b, h, w, c = img_bhwc.shape
+        dev = img_bhwc.device
+        dt  = img_bhwc.dtype
+        kx = _gauss_kernel1d(sigma, device=dev, dtype=dt)
+        ky = _gauss_kernel1d(sigma, device=dev, dtype=dt)
+        x = img_bhwc.movedim(-1, 1)
+        x = F.pad(x, (kx.shape[-1]//2, kx.shape[-1]//2, 0, 0), mode="reflect")
+        x = F.conv2d(x, kx.expand(c,1,1,kx.shape[-1]), groups=c)
+        x = F.pad(x, (0, 0, ky.shape[-1]//2, ky.shape[-1]//2), mode="reflect")
+        x = F.conv2d(x, ky.transpose(-1,-2).expand(c,1,ky.shape[-1],1), groups=c)
+        return x.movedim(1, -1)
+
+    def _unsharp(img_bhwc, amount: float, sigma: float):
+        if amount <= 0.0:
+            return img_bhwc
+        blurred = _gaussian_blur(img_bhwc, sigma)
+        return (img_bhwc + amount * (img_bhwc - blurred)).clamp(0, 1)
+
+    def _sat_contrast(img_bhwc, sat: float, micro_c: float):
+        if sat <= 0.0 and micro_c <= 0.0:
+            return img_bhwc
+        rgb = img_bhwc
+        y = (rgb[...,0]*0.299 + rgb[...,1]*0.587 + rgb[...,2]*0.114).unsqueeze(-1)
+        if sat > 0.0:
+            rgb = (y + (rgb - y) * (1.0 + sat)).clamp(0, 1)
+        if micro_c > 0.0:
+            rgb = ((rgb - 0.5) * (1.0 + micro_c) + 0.5).clamp(0, 1)
+        return rgb
+
+    # ---------- read + normalize config ----------
     upscale_type = str(pick(hires_conf, "upscale_type", default="latent")).lower()
     if upscale_type not in ("latent", "pixel", "both"):
         upscale_type = "latent"
+    do_pixel  = (upscale_type == "pixel"  or upscale_type == "both")
+    do_latent = (upscale_type == "latent" or upscale_type == "both")
 
-    # scale: allow aliases; enforce sane value
-    scale = pick(hires_conf, "upscale_by", "scale", "factor", "multiplier",
-                 default=1.5, cast=float)
+    latent_resampler = str(pick(hires_conf, "latent_resampler", default="nearest-exact"))
+    pixel_resampler  = str(pick(hires_conf, "pixel_resampler", default="bicubic"))
+
+    scale = pick(hires_conf, "upscale_by", "scale", "factor", "multiplier", default=1.5, cast=float)
     try:
         scale = float(scale)
-        if not math.isfinite(scale) or scale <= 0:
+        if not math.isfinite(scale) or scale <= 0.0:
             scale = 1.5
     except Exception:
         scale = 1.5
 
     hires_steps = max(1, int(pick(hires_conf, "hires_steps", "steps", default=12, cast=int)))
-    denoise = float(pick(hires_conf, "denoise", default=base_denoise, cast=float))
+    denoise     = float(pick(hires_conf, "denoise", default=base_denoise, cast=float))
 
-    # booleans can come as "true"/"1"/1 etc.
-    def to_bool(v):
+    def _to_bool(v):
         if isinstance(v, bool): return v
         if isinstance(v, (int, float)): return v != 0
-        if isinstance(v, str): return v.strip().lower() in ("1", "true", "yes", "y", "on")
+        if isinstance(v, str): return v.strip().lower() in ("1","true","yes","y","on")
         return bool(v)
 
-    use_same_seed = to_bool(pick(hires_conf, "use_same_seed", default=True, cast=to_bool))
-    seed2 = int(pick(hires_conf, "seed", default=(seed if use_same_seed else (seed + 1)), cast=int))
-    iterations = max(1, int(pick(hires_conf, "iterations", default=1, cast=int)))
+    use_same    = _to_bool(pick(hires_conf, "use_same_seed", default=True, cast=_to_bool))
+    seed2       = int(pick(hires_conf, "seed", default=(seed if use_same else (seed + 1)), cast=int))
+    iterations  = max(1, int(pick(hires_conf, "iterations", default=1, cast=int)))
 
-    # FYI: external upscaler names are ignored (safe fallback)
-    if any(k in hires_conf for k in ("pixel_upscaler", "latent_upscaler")):
-        print("[UltraDuperSampler][HiRes] External upscaler requested; falling back to built-in interpolate/VAE path.")
+    # smart targets (pixels)
+    tgt_long  = int(pick(hires_conf, "target_long_edge", default=0, cast=int))
+    tgt_short = int(pick(hires_conf, "target_short_edge", default=0, cast=int))
+    tgt_w     = int(pick(hires_conf, "target_width", default=0, cast=int))
+    tgt_h     = int(pick(hires_conf, "target_height", default=0, cast=int))
+    max_mp    = float(pick(hires_conf, "max_megapixels", default=0.0, cast=float))
 
-    print(f"[UltraDuperSampler][HiRes] type={upscale_type} scale={scale} steps={hires_steps} denoise={denoise} its={iterations} seed={seed2}")
+    beauty    = hires_conf.get("beautify", {}) if isinstance(hires_conf.get("beautify", {}), dict) else {}
+    b_enable  = bool(beauty.get("enable", True))
+    b_sharp   = float(beauty.get("sharpen_amount", 0.15))
+    b_sigma   = float(beauty.get("sharpen_sigma", 0.8))
+    b_mic     = float(beauty.get("micro_contrast", 0.08))
+    b_sat     = float(beauty.get("saturation", 0.06))
 
     device = getattr(model, "load_device", torch.device("cuda" if torch.cuda.is_available() else "cpu"))
-    lat = _fix_latent(model, latent_dict["samples"])
+    lat = _fix_latent(model, latent_dict["samples"])  # (B,C,H,W)
 
+    # ---------- compute target sizes ----------
+    _, _, lh, lw = lat.shape
+    base_ph, base_pw = lh * 8, lw * 8
+
+    ph, pw = None, None
+    if tgt_w > 0 and tgt_h > 0:
+        pw, ph = tgt_w, tgt_h
+    elif tgt_w > 0:
+        pw = tgt_w; ph = int(round(pw * (base_ph / base_pw)))
+    elif tgt_h > 0:
+        ph = tgt_h; pw = int(round(ph * (base_pw / base_ph)))
+    elif tgt_long > 0 or tgt_short > 0:
+        long_is_w = base_pw >= base_ph
+        if tgt_long > 0:
+            if long_is_w:
+                pw = tgt_long; ph = int(round(pw * (base_ph / base_pw)))
+            else:
+                ph = tgt_long; pw = int(round(ph * (base_pw / base_ph)))
+        else:
+            if long_is_w:
+                ph = tgt_short; pw = int(round(ph * (base_pw / base_ph)))
+            else:
+                pw = tgt_short; ph = int(round(pw * (base_ph / base_pw)))
+
+    if ph is None or pw is None:
+        ph = int(round(base_ph * scale))
+        pw = int(round(base_pw * scale))
+
+    ph = max(8, (ph + 7) // 8 * 8)
+    pw = max(8, (pw + 7) // 8 * 8)
+
+    if max_mp > 0.0:
+        pix = ph * pw
+        cap = int(max_mp * 1_000_000)
+        if pix > cap > 0:
+            r = math.sqrt(cap / pix)
+            ph = max(8, int(round(ph * r)) // 8 * 8)
+            pw = max(8, int(round(pw * r)) // 8 * 8)
+
+    nh, nw = int(ph // 8), int(pw // 8)
+
+    print(f"[UltraDuperSampler][HiRes] type={upscale_type} -> {pw}x{ph}px ({nw}x{nh} latent), steps={hires_steps}, denoise={denoise}, its={iterations}, seed={seed2}")
+
+    # ---------- run iterations ----------
     for it in range(iterations):
-        # 1) Pixel upscaling (decode -> resize -> encode) if requested
-        if "pixel" in upscale_type:
+
+        # 1) Latent up first
+        if do_latent:
+            lat = _latent_up(lat, nh, nw, latent_resampler)
+
+        # 2) Pixel path: decode → maybe resize → beautify → re-encode
+        if do_pixel:
             if vae is None:
                 print("[UltraDuperSampler][HiRes] pixel mode requested but no VAE connected; falling back to latent-only.")
             else:
-                ph, pw = _pixel_size_from_scale(lat, vae, scale)
                 try:
                     dec = vae.decode(lat)
                     img = dec["images"] if isinstance(dec, dict) else dec
                 except Exception as e:
                     print(f"[UltraDuperSampler][HiRes] VAE decode failed: {e}")
                     img = None
+
                 if isinstance(img, torch.Tensor):
                     img = img.clamp(0, 1)
-                    up = _pixel_upscale(img, ph, pw)
+                    _, h, w, _ = img.shape
+                    if h != ph or w != pw:
+                        img = _pixel_up(img, ph, pw, pixel_resampler)
+
+                    if b_enable and (b_sharp > 0 or b_mic > 0 or b_sat > 0):
+                        img = _unsharp(img, b_sharp, b_sigma)
+                        img = _sat_contrast(img, b_sat, b_mic)
+
                     try:
-                        enc = vae.encode(up)
+                        enc = vae.encode(img)
                         lat = enc["samples"] if isinstance(enc, dict) else enc
                     except Exception as e:
                         print(f"[UltraDuperSampler][HiRes] VAE encode failed: {e}")
                 else:
-                    print("[UltraDuperSampler][HiRes] VAE decode did not return tensor; skipping pixel stage.")
+                    print("[UltraDuperSampler][HiRes] VAE decode returned non-tensor; skipping pixel stage.")
 
-        # 2) Latent upscaling if requested (or as the only mode)
-        if "latent" in upscale_type:
-            nh, nw = _latent_size_from_scale(lat, scale)
-            lat = _latent_upscale(lat, nh, nw)
-
-        # 3) Short refine pass at high-res
+        # 3) Short refine at high-res (must pass real noise on 0.3.50)
         base_cb = latent_preview.prepare_callback(model, hires_steps)
         ks = comfy.samplers.KSampler(
             model, steps=int(hires_steps), device=device,
             sampler=sampler_name, scheduler=scheduler, denoise=float(denoise),
             model_options=getattr(model, "model_options", {}),
         )
+        try:
+            ref_noise = _prepare_noise(model, {"samples": lat, "batch_index": None}, int(seed2 + it))
+        except Exception as e:
+            print(f"[UltraDuperSampler][HiRes] prepare_noise failed: {e}; using randn_like.")
+            ref_noise = None
+        if ref_noise is None:
+            ref_noise = torch.randn_like(lat, device=lat.device)
+
         lat = ks.sample(
-            noise=None, positive=positive, negative=negative, cfg=float(cfg_like),
+            noise=ref_noise,
+            positive=positive, negative=negative, cfg=float(cfg_like),
             latent_image=lat, start_step=0, last_step=int(hires_steps),
             force_full_denoise=False, denoise_mask=None, sigmas=None,
             callback=base_cb, disable_pbar=not comfy.utils.PROGRESS_BAR_ENABLED, seed=int(seed2 + it),
@@ -507,16 +470,6 @@ def _apply_hires(model, vae, positive, negative, cfg_like: float,
 # -------------------------- main engine --------------------------
 
 class UltraDuperSampler:
-    """
-    Ultra Duper Sampler (Flux-aware v2.8.1)
-    - purge_vram + interrupt-safe purge
-    - allow_tf32 toggle (Ampere+)
-    - dynamic sweep scaling + step weighting + start_noise kick
-    - arrays-aware sweeps (strengths/grains)
-    - XY-Plot compatible (Efficiency SCRIPT / XY fallback)
-    - HiRes-Fix compatible (dict/tuple), including stacked with XY
-    - NEW: emits (LATENT, IMAGE, VAE) — image decode is opt-in (emit_image)
-    """
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -526,26 +479,23 @@ class UltraDuperSampler:
                 "negative": ("CONDITIONING", {}),
                 "latent": ("LATENT", {}),
                 "steps": ("INT", {"default": 30, "min": 1, "max": 10000}),
-                "cfg": ("FLOAT", {"default": 7.0, "min": 0.0, "max": 100.0, "step": 0.05, "tooltip": "In Flux mode this acts as Guidance (typical 1.5–4.0)."}),
+                "cfg": ("FLOAT", {"default": 7.0, "min": 0.0, "max": 100.0, "step": 0.05}),
                 "sampler_name": (comfy.samplers.KSampler.SAMPLERS, {}),
                 "scheduler": (comfy.samplers.KSampler.SCHEDULERS, {}),
                 "denoise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
                 "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "control_after_generate": True}),
                 "start_noise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 3.0, "step": 0.01}),
                 "skip_tail": ("INT", {"default": 0, "min": 0, "max": 128, "step": 1}),
-                "auto_flux_detect": ("BOOLEAN", {"default": True, "tooltip": "If the model appears Flux/flow-matching, treat CFG as Guidance and use native timing."}),
-                "purge_vram": ("BOOLEAN", {"default": False, "tooltip": "Free VRAM after the run. On interrupt, purge is always performed."}),
-                "allow_tf32": ("BOOLEAN", {"default": False, "tooltip": "Enable TF32 on matmul/cudnn (Ampere+). Can speed up FP32 models."}),
+                "auto_flux_detect": ("BOOLEAN", {"default": True}),
+                "purge_vram": ("BOOLEAN", {"default": False}),
+                "allow_tf32": ("BOOLEAN", {"default": False}),
             },
             "optional": {
-                "vae": ("VAE", {}),              # required for emit_image & pixel upscaling
-                "special_cfg": ("DICT", {}),     # UltraCFG dict
-                "special_noise": ("DICT", {}),   # Ultra Noise Sweeps dict
-                # Efficiency compatibility:
-                "script": ("SCRIPT", {}),        # primary (matches Efficiency output type)
-                "xy_script": ("XY", {}),         # fallback for old graphs (raw XY tuple)
-                "xy_preview_grid": ("BOOLEAN", {"default": False, "tooltip": "If VAE is connected, show a simple XY grid preview in the UI."}),
-                "emit_image": ("BOOLEAN", {"default": True, "tooltip": "Decode and return IMAGE as second output (requires VAE)."}),
+                "vae": ("VAE", {}),
+                "special_cfg": ("DICT", {}),
+                "special_noise": ("DICT", {}),
+                "script": ("SCRIPT", {"tooltip": "Ultra HiRes Script output (or plain dict in same schema)."}),
+                "emit_image": ("BOOLEAN", {"default": True}),
             }
         }
 
@@ -561,7 +511,7 @@ class UltraDuperSampler:
         sampler_name, scheduler, denoise, seed, start_noise, skip_tail, auto_flux_detect,
         purge_vram, allow_tf32,
         special_cfg=None, special_noise=None,
-        script=None, xy_script=None, vae=None, xy_preview_grid=False, emit_image=True
+        script=None, vae=None, emit_image=True
     ):
         steps = int(steps)
         skip_tail = max(0, min(int(skip_tail), max(0, steps - 1)))
@@ -569,14 +519,13 @@ class UltraDuperSampler:
 
         device = getattr(model, "load_device", torch.device("cuda" if torch.cuda.is_available() else "cpu"))
         is_flux = bool(auto_flux_detect) and _is_flux_model(model)
-
-        latent_img0 = _fix_latent(model, latent["samples"])
-        base_noise0 = _prepare_noise(model, {"samples": latent_img0, "batch_index": latent.get("batch_index")}, seed).to(device)
-        base_noise0 = base_noise0 * float(start_noise)
-
         disable_pbar = not comfy.utils.PROGRESS_BAR_ENABLED
 
-        # ---------- Prepare sweeps ----------
+        # original sizes for final-output keep_original
+        orig_lh, orig_lw = int(latent["samples"].shape[-2]), int(latent["samples"].shape[-1])
+        orig_ph, orig_pw = orig_lh * 8, orig_lw * 8
+
+        # ---------- sweeps ----------
         sweep = special_noise if isinstance(special_noise, dict) else None
         base_pattern = "gaussian"
         post_tail_steps = None
@@ -624,7 +573,7 @@ class UltraDuperSampler:
             step_weighting = str(sweep.get("step_weighting", "flat"))
             dynamic_scale = bool(sweep.get("dynamic_scale", True))
 
-        # ---------- CFG-Focus schedule ----------
+        # ---------- CFG-Focus ----------
         cf = special_cfg if isinstance(special_cfg, dict) else {}
         base_cfg = float(cf.get("base_cfg", cfg if isinstance(cfg, (float, int)) else 7.0))
         focus_mode = str(cf.get("mode", "none"))
@@ -633,25 +582,57 @@ class UltraDuperSampler:
         focus_end = int(cf.get("focus_end", total_steps))
         focus_curve_template = _cfg_focus_curve(focus_mode, total_steps, focus_start, focus_end, focus_strength)
 
-        # ---------- parse scripts (XY + HiRes) ----------
-        script_obj = script if script is not None else xy_script
-        xy_tuple, hires_conf = _parse_scripts(script_obj)
+        # ---------- HiRes (Ultra-only) ----------
+        hires_conf = _parse_ultra_hires(script)
+        final_conf = hires_conf.get("final", {}) if isinstance(hires_conf, dict) else {}
+        final_mode = str(final_conf.get("mode", "keep_original")).lower()
+        final_w = int(final_conf.get("width", 0))
+        final_h = int(final_conf.get("height", 0))
+        final_le = int(final_conf.get("long_edge", 0))
+        final_resampler = str(final_conf.get("resampler", "bicubic"))
+        final_antialias = bool(final_conf.get("antialias", True))
+        final_downscale_latent = bool(final_conf.get("downscale_latent", False))
 
-        # ---------- helpers ----------
-        def _step_weight(i: int, total: int, mode: str) -> float:
-            total = max(1, int(total))
-            if total <= 1: return 1.0
-            t = i / (total - 1)
-            m = (mode or "flat").lower()
-            if m == "flat":     return 1.0
-            if m == "early":    return 1.0 - t
-            if m == "late":     return t
-            if m == "mid":      return 1.0 - abs(2.0 * t - 1.0)
-            if m == "edge":     return abs(2.0 * t - 1.0)
-            if m == "gaussian":
-                mu, sigma = 0.5, 0.20
-                return math.exp(-0.5 * ((t - mu) / sigma) ** 2)
-            return 1.0
+        def _final_target_for(out_ph, out_pw):
+            if final_mode == "hires_size":
+                return None
+            if final_mode == "keep_original":
+                return (orig_pw, orig_ph)
+            if final_mode == "custom":
+                if final_w > 0 and final_h > 0:
+                    return (final_w, final_h)
+                elif final_w > 0:
+                    h = int(round(final_w * (out_ph / out_pw)))
+                    return (final_w, h)
+                elif final_h > 0:
+                    w = int(round(final_h * (out_pw / out_ph)))
+                    return (w, final_h)
+                elif final_le > 0:
+                    long_is_w = out_pw >= out_ph
+                    if long_is_w:
+                        w = final_le; h = int(round(w * (out_ph / out_pw)))
+                    else:
+                        h = final_le; w = int(round(h * (out_pw / out_ph)))
+                    return (w, h)
+            return None
+
+        def _img_resize_bhwc(img, W, H, mode, antialias=True):
+            nchw = img.movedim(-1, 1)
+            if mode == "nearest":
+                out = F.interpolate(nchw, size=(H, W), mode="nearest")
+            else:
+                out = F.interpolate(nchw, size=(H, W), mode=mode,
+                                    align_corners=False, antialias=bool(antialias))
+            return out.movedim(1, -1).clamp(0, 1)
+
+        def _latent_resize(lat, nh, nw, mode: str):
+            mode = str(mode or "nearest-exact")
+            if mode in ("nearest", "nearest-exact"):
+                return F.interpolate(lat, size=(int(nh), int(nw)), mode="nearest-exact")
+            elif mode in ("bilinear", "bicubic"):
+                return F.interpolate(lat, size=(int(nh), int(nw)), mode=mode, align_corners=False)
+            else:
+                return F.interpolate(lat, size=(int(nh), int(nw)), mode="nearest-exact")
 
         def _run_single(params: dict):
             _steps = int(params.get("steps", total_steps))
@@ -682,8 +663,7 @@ class UltraDuperSampler:
                         inj = _pattern(tuple(x.shape), x.device, x.dtype, base_pattern, bool(sweep.get("experimental", False)) if sweep else False)
                         inj = _apply_grain(inj, grain)
                         inj = _std_normalize(inj) * cur_std
-                        gain = float(strength) * float(impact) * _step_weight(i, _steps, step_weighting)
-                        if gain != 0.0: x.add_(inj * gain)
+                        x.add_(inj * float(strength) * float(impact))
                         del inj
                 alpha = float(focus_curve[i]) if 0 <= i < len(focus_curve) else 0.0
                 if alpha > 0.0:
@@ -711,21 +691,19 @@ class UltraDuperSampler:
                     base_noise=base_noise, tail_steps=post_tail_steps,
                 )
 
-            if isinstance(hires_conf, dict) or (isinstance(hires_conf, tuple) and _parse_hires_from_tuple(hires_conf)):
+            if isinstance(hires_conf, dict):
                 print("[UltraDuperSampler] HiRes script detected; applying second pass.")
-                hc = hires_conf if isinstance(hires_conf, dict) else _parse_hires_from_tuple(hires_conf)
                 out_dict = _apply_hires(
                     model=model, vae=vae, positive=positive, negative=negative, cfg_like=_cfg_v,
                     sampler_name=_sampler, scheduler=_sched, base_denoise=_denoise,
-                    latent_dict=out_dict, seed=_seed, hires_conf=hc
-    )
+                    latent_dict=out_dict, seed=_seed, hires_conf=hires_conf
+                )
 
             return out_dict["samples"]
 
         interrupted = False
         prev_tf32_matmul = None
         prev_tf32_cudnn = None
-        ui_images = []
 
         try:
             if allow_tf32 and torch.cuda.is_available():
@@ -734,7 +712,7 @@ class UltraDuperSampler:
                 torch.backends.cuda.matmul.allow_tf32 = True
                 torch.backends.cudnn.allow_tf32 = True
 
-            def _decode_images(latent_tensor):
+            def _decode_images(latent_tensor, final_size=None, mode="bicubic", antialias=True):
                 if not bool(emit_image):
                     return None
                 if vae is None:
@@ -744,85 +722,96 @@ class UltraDuperSampler:
                     dec = vae.decode(latent_tensor)
                     images = dec["images"] if isinstance(dec, dict) else dec
                     if isinstance(images, torch.Tensor):
-                        return images.clamp(0, 1)
+                        images = images.clamp(0, 1)
+                        if isinstance(final_size, tuple) and final_size[0] > 0 and final_size[1] > 0:
+                            W, H = int(final_size[0]), int(final_size[1])
+                            if mode == "nearest":
+                                images = images.movedim(-1, 1)
+                                images = F.interpolate(images, size=(H, W), mode="nearest").movedim(1, -1)
+                            else:
+                                images = images.movedim(-1, 1)
+                                images = F.interpolate(images, size=(H, W), mode=mode,
+                                                       align_corners=False, antialias=bool(antialias)).movedim(1, -1)
+                        return images
                 except Exception as e:
                     print(f"[UltraDuperSampler] VAE decode failed: {e}")
                 return None
 
-            if not (isinstance(xy_tuple, tuple) and len(xy_tuple) >= 10):
-                params = {
-                    "steps": total_steps, "cfg": base_cfg, "sampler_name": sampler_name,
-                    "scheduler": scheduler, "denoise": denoise, "seed": seed
-                }
-                out_samples = _run_single(params)
-                out = dict(latent); out["samples"] = out_samples
-                images = _decode_images(out_samples)
+            params = {
+                "steps": total_steps, "cfg": base_cfg, "sampler_name": sampler_name,
+                "scheduler": scheduler, "denoise": denoise, "seed": seed
+            }
+            out_samples = _run_single(params)
 
-                if is_flux:
-                    print("[UltraDuperSampler] Flux detected. Treating 'cfg' as guidance. Typical guidance 1.5–4.0; steps 12–24.")
-                return (out, images, vae)
+            # ---- Final Output sizing (supersample → downscale) ----
+            out_lh, out_lw = int(out_samples.shape[-2]), int(out_samples.shape[-1])
+            out_ph, out_pw = out_lh * 8, out_lw * 8
 
-            # XY enabled
-            X_type, X_val, Y_type, Y_val, grid_spacing, _y_orient, _cache_models, _xy_as_img, flip_xy, _deps = xy_tuple
-            xy_grid_spacing = int(grid_spacing) if grid_spacing is not None else 0
-            print("[UltraDuperSampler][XY] Running grid. Supported axis types:", _XY_SUPPORTED)
+            hires_conf_resampler = "nearest-exact"
+            if isinstance(hires_conf, dict):
+                hires_conf_resampler = str(hires_conf.get("latent_resampler", "nearest-exact"))
 
-            batch_samples = []
-            for (xi, xv, yi, yv) in _xy_iter_pairs(X_type, X_val, Y_type, Y_val, bool(flip_xy)):
-                params = {
-                    "steps": total_steps, "cfg": base_cfg, "sampler_name": sampler_name,
-                    "scheduler": scheduler, "denoise": denoise, "seed": seed
-                }
-                _xy_apply_to_params(params, X_type, xv)
-                _xy_apply_to_params(params, Y_type, yv)
+            final_conf = hires_conf.get("final", {}) if isinstance(hires_conf, dict) else {}
+            final_mode = str(final_conf.get("mode", "keep_original")).lower()
+            final_w = int(final_conf.get("width", 0))
+            final_h = int(final_conf.get("height", 0))
+            final_le = int(final_conf.get("long_edge", 0))
+            final_resampler = str(final_conf.get("resampler", "bicubic"))
+            final_antialias = bool(final_conf.get("antialias", True))
+            final_downscale_latent = bool(final_conf.get("downscale_latent", False))
 
-                out_samples = _run_single(params)
-                batch_samples.append(out_samples)
+            def _final_target_for(out_ph, out_pw):
+                if final_mode == "hires_size":
+                    return None
+                if final_mode == "keep_original":
+                    return (orig_pw, orig_ph)
+                if final_mode == "custom":
+                    if final_w > 0 and final_h > 0:
+                        return (final_w, final_h)
+                    elif final_w > 0:
+                        h = int(round(final_w * (out_ph / out_pw)))
+                        return (final_w, h)
+                    elif final_h > 0:
+                        w = int(round(final_h * (out_pw / out_ph)))
+                        return (w, final_h)
+                    elif final_le > 0:
+                        long_is_w = out_pw >= out_ph
+                        if long_is_w:
+                            w = final_le; h = int(round(w * (out_ph / out_pw)))
+                        else:
+                            h = final_le; w = int(round(h * (out_pw / out_ph)))
+                        return (w, h)
+                return None
 
-                # Optional UI preview grid (decode each cell)
-                if vae is not None and bool(xy_preview_grid):
-                    try:
-                        img = vae.decode(out_samples)["images"] if isinstance(vae.decode(out_samples), dict) else vae.decode(out_samples)
-                        if isinstance(img, torch.Tensor):
-                            img = img.clamp(0, 1)
-                            ui_images.append(img[0:1])
-                    except Exception as e:
-                        print(f"[UltraDuperSampler][XY] VAE preview failed: {e}")
+            final_target = _final_target_for(out_ph, out_pw)
 
-            cat = torch.cat(batch_samples, dim=0) if len(batch_samples) > 1 else batch_samples[0]
-            out = dict(latent); out["samples"] = cat
-            images = _decode_images(cat)
+            if final_target and bool(final_downscale_latent):
+                W, H = final_target
+                nh, nw = int(max(8, H) // 8), int(max(8, W) // 8)
+                out_samples = _latent_resize(out_samples, nh, nw, hires_conf_resampler)
 
-            ui = {}
-            if vae is not None and bool(xy_preview_grid) and ui_images:
-                try:
-                    imgs = torch.cat(ui_images, dim=0)  # (B,H,W,C)
-                    B, H, W, C = imgs.shape
-                    cols = len(_xy_expand_axis(X_type, X_val)) or 1
-                    rows = len(_xy_expand_axis(Y_type, Y_val)) or 1
-                    if bool(flip_xy): cols, rows = rows, cols
-                    grid_h = rows * H + max(0, rows - 1) * int(xy_grid_spacing)
-                    grid_w = cols * W + max(0, cols - 1) * int(xy_grid_spacing)
-                    grid = torch.zeros((grid_h, grid_w, C), dtype=imgs.dtype, device=imgs.device)
-                    k = 0
-                    for r in range(rows):
-                        for c in range(cols):
-                            if k >= B: break
-                            y0 = r * (H + xy_grid_spacing)
-                            x0 = c * (W + xy_grid_spacing)
-                            grid[y0:y0+H, x0:x0+W, :] = imgs[k]
-                            k += 1
-                    ui = {"images": [grid.unsqueeze(0)]}
-                except Exception as e:
-                    print(f"[UltraDuperSampler][XY] Failed to assemble UI grid: {e}")
+            images = _decode_images(out_samples, final_size=final_target, mode=final_resampler, antialias=final_antialias)
+
+            try:
+                print(f"[UltraDuperSampler] Latent before: {orig_lw}x{orig_lh}  after: {out_lw}x{out_lh}")
+                exp_w, exp_h = int(out_lw * 8), int(out_lh * 8)
+                print(f"[UltraDuperSampler] Expected decoded image (hires): {exp_w}x{exp_h}")
+                if final_target:
+                    print(f"[UltraDuperSampler] Final output size: {final_target[0]}x{final_target[1]}  (mode={final_mode})")
+                if isinstance(images, torch.Tensor):
+                    b, h, w, c = images.shape
+                    print(f"[UltraDuperSampler] Decoded tensor: {w}x{h} (B={b}, C={c})")
+                else:
+                    print("[UltraDuperSampler] No decoded image tensor (emit_image off or VAE missing).")
+            except Exception as e:
+                print(f"[UltraDuperSampler] Debug size print failed: {e}")
+
+            out = dict(latent); out["samples"] = out_samples
 
             if is_flux:
                 print("[UltraDuperSampler] Flux detected. Treating 'cfg' as guidance. Typical guidance 1.5–4.0; steps 12–24.")
 
-            if ui:
-                return {"ui": ui, "result": (out, images, vae)}
-            else:
-                return (out, images, vae)
+            return (out, images, vae)
 
         except BaseException:
             interrupted = True
@@ -832,16 +821,10 @@ class UltraDuperSampler:
                 torch.backends.cuda.matmul.allow_tf32 = prev_tf32_matmul
             if prev_tf32_cudnn is not None:
                 torch.backends.cudnn.allow_tf32 = prev_tf32_cudnn
-
-            for _name in ("base_noise0", "latent_img0"):
-                if _name in locals():
-                    try: del locals()[_name]
-                    except Exception: pass
-
             if interrupted or bool(purge_vram):
                 _grid_cache_clear()
                 _purge_vram(sync=True)
 
 
 NODE_CLASS_MAPPINGS = {"UltraDuperSampler": UltraDuperSampler}
-NODE_DISPLAY_NAME_MAPPINGS = {"UltraDuperSampler": "Ultra Duper Sampler (Flux-aware v2.8.1)"}
+NODE_DISPLAY_NAME_MAPPINGS = {"UltraDuperSampler": "Ultra Duper Sampler (Flux-aware v3.2)"}
