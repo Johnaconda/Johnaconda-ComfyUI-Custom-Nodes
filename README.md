@@ -25,7 +25,7 @@ Now updated with an Ultra HiRes node (:!
 
 <img src="https://raw.githubusercontent.com/Johnaconda/Johnaconda-ComfyUI-Custom-Nodes/refs/heads/main/images/comfyuishowcase.png?raw=true" alt="CombinerExample" title="Combiner preview usage">
 
-<img src="https://raw.githubusercontent.com/Johnaconda/Johnaconda-ComfyUI-Custom-Nodes/refs/heads/main/images/Benchmark.png?raw=true" alt="CombinerExample" title="Benchmark tester preview usage">
+<img src="https://raw.githubusercontent.com/Johnaconda/Johnaconda-ComfyUI-Custom-Nodes/refs/heads/main/images/Benchmark.PNG?raw=true" alt="CombinerExample" title="Benchmark tester preview usage">
 
 
 # The SDXL Dual Model merger
