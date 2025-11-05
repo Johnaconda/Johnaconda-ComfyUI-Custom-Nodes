@@ -20,8 +20,6 @@ import comfy.sample
 import comfy.utils
 import latent_preview
 import folder_paths as paths
-from PIL import Image
-
 
 
 # -------------------------- utils & housekeeping --------------------------
@@ -847,33 +845,31 @@ class UltraDuperSampler:
 
 class UltraSamplerMatrix:
     """
-    Define up to 6 (sampler, scheduler, label) combos.
-
-    'count' controls how many slots are active (1..6).
-    Output:
-      {
-        "pairs": [
-          {"sampler": "...", "scheduler": "...", "label": "..."},
-          ...
-        ]
-      }
+    Define sampler/scheduler rows. Automatically use all rows defined.
+    No manual count input.
     """
 
     MAX = 6
 
     @classmethod
     def INPUT_TYPES(cls):
-        req = {
-            "count": ("INT", {"default": 1, "min": 1, "max": cls.MAX, "step": 1}),
-        }
-
         opt = {}
         for i in range(1, cls.MAX + 1):
+            opt[f"enable_{i}"] = (
+                "BOOLEAN",
+                {
+                    "default": True if i == 1 else False,
+                    "tooltip": f"Enable row {i} in sampler matrix",
+                },
+            )
             opt[f"sampler_{i}"] = (comfy.samplers.KSampler.SAMPLERS, {})
             opt[f"scheduler_{i}"] = (comfy.samplers.KSampler.SCHEDULERS, {})
-            opt[f"label_{i}"] = ("STRING", {"default": f"S{i}"})
+            opt[f"label_{i}"] = (
+                "STRING",
+                {"default": f"S{i}", "tooltip": "Optional label for this row"},
+            )
 
-        return {"required": req, "optional": opt}
+        return {"required": {}, "optional": opt}
 
     RETURN_TYPES = ("DICT",)
     RETURN_NAMES = ("sampler_matrix",)
@@ -881,20 +877,25 @@ class UltraSamplerMatrix:
     CATEGORY = "sampling/ultra/tweaks"
     OUTPUT_NODE = False
 
-    def build(self, count, **kwargs):
-        count = max(1, min(int(count), self.MAX))
+    def build(self, **kwargs):
         pairs = []
-        for i in range(1, count + 1):
+        for i in range(1, self.MAX + 1):
+            if not bool(kwargs.get(f"enable_{i}", False)):
+                continue
             s = kwargs.get(f"sampler_{i}")
             sch = kwargs.get(f"scheduler_{i}")
             lab = kwargs.get(f"label_{i}", f"S{i}")
             if s is None or sch is None:
                 continue
-            pairs.append({
-                "sampler": str(s),
-                "scheduler": str(sch),
-                "label": str(lab),
-            })
+            pairs.append({"sampler": str(s), "scheduler": str(sch), "label": str(lab)})
+
+        # Fallback to one row if none defined
+        if not pairs:
+            # Use first row defaults or provided sampler_name & scheduler
+            pairs.append({"sampler": str(kwargs.get("sampler_1", "")),
+                          "scheduler": str(kwargs.get("scheduler_1", "")),
+                          "label": "S1"})
+
         return ({"pairs": pairs},)
 
 
@@ -931,7 +932,6 @@ class UltraBenchmarkTester:
                 "skip_tail": ("INT", {"default": 0, "min": 0, "max": 128, "step": 1}),
                 "auto_flux_detect": ("BOOLEAN", {"default": True}),
                 "allow_tf32": ("BOOLEAN", {"default": False}),
-                "num_cols": ("INT", {"default": 4, "min": 1, "max": 16, "step": 1}),  # kept for compatibility, not used now
             },
             "optional": {
                 "vae": ("VAE", {}),
@@ -971,7 +971,7 @@ class UltraBenchmarkTester:
         self,
         model, positive, negative, latent, steps, cfg,
         sampler_name, scheduler, denoise, seed, start_noise, skip_tail,
-        auto_flux_detect, allow_tf32, num_cols,      # num_cols kept but not used
+        auto_flux_detect, allow_tf32,
         vae=None, special_cfg=None, sampler_matrix=None,
         sweep_A=None, script_A=None,
         sweep_B=None, script_B=None,
@@ -1006,21 +1006,20 @@ class UltraBenchmarkTester:
                 "sampler": str(sampler_name),
                 "scheduler": str(scheduler),
                 "label": "Base",
-            })
+        })
+
+        print(f"DEBUG: Number of columns (X) = {len(combo_defs)}; Number of rows (Y) = {len(sampler_pairs)}")
 
         uds = UltraDuperSampler()
         tiles = []
         meta_tiles = []
-
-        # IMPORTANT: keep one constant seed for entire benchmark
         const_seed = int(seed)
 
-        # ---- nested loop: sampler row × sweep column ----
+        # ---- nested loops: for each row (sampler_pair) then each column (combo_defs) ----
         for s_idx, sp in enumerate(sampler_pairs):
             s_name = sp["sampler"]
             sch_name = sp["scheduler"]
             s_label = sp["label"]
-
             for c_idx, combo in enumerate(combo_defs):
                 tag = combo["tag"]
                 sw_cfg = combo["sweep"]
@@ -1031,7 +1030,7 @@ class UltraBenchmarkTester:
                     "samples": latent["samples"].clone(),
                     "batch_index": latent.get("batch_index"),
                 }
-
+                print(f"Running sampler {s_name}/{sch_name} row {s_idx}, combo {tag} col {c_idx}")
                 out_latent, images, _ = uds.run(
                     model=model,
                     positive=positive,
@@ -1042,7 +1041,7 @@ class UltraBenchmarkTester:
                     sampler_name=s_name,
                     scheduler=sch_name,
                     denoise=denoise,
-                    seed=const_seed,               # fixed seed for fair comparison
+                    seed=const_seed,
                     start_noise=start_noise,
                     skip_tail=skip_tail,
                     auto_flux_detect=auto_flux_detect,
@@ -1057,10 +1056,8 @@ class UltraBenchmarkTester:
 
                 if not bool(emit_image):
                     raise RuntimeError("[UltraBenchmarkTester] emit_image=False; no IMAGE output.")
-
                 if images is None or not isinstance(images, torch.Tensor):
                     raise RuntimeError("[UltraBenchmarkTester] UltraDuperSampler returned no image tensor.")
-
                 if images.dim() != 4:
                     raise RuntimeError(f"[UltraBenchmarkTester] Expected 4D tensor, got {tuple(images.shape)}")
 
@@ -1084,12 +1081,11 @@ class UltraBenchmarkTester:
         if not tiles:
             raise RuntimeError("[UltraBenchmarkTester] No tiles collected.")
 
-        # ---- normalize tile sizes (all to min h/w) ----
+        # ---- normalization (same as your version) ----
         heights = [t.shape[1] for t in tiles]
         widths = [t.shape[2] for t in tiles]
         min_h = min(heights)
         min_w = min(widths)
-
         if any(h != min_h or w != min_w for h, w in zip(heights, widths)):
             for i, t in enumerate(tiles):
                 if t.shape[1] == min_h and t.shape[2] == min_w:
@@ -1098,28 +1094,25 @@ class UltraBenchmarkTester:
                 nchw = F.interpolate(nchw, size=(min_h, min_w), mode="bilinear", align_corners=False)
                 tiles[i] = nchw.movedim(1, -1).clamp(0, 1)
 
-        # ---- build grid with explicit X/Y semantics ----
-        sampler_ids = sorted({m["sampler_index"] for m in meta_tiles if m["sampler_index"] >= 0})
-        combo_ids = sorted({m["combo_index"] for m in meta_tiles if m["combo_index"] >= 0})
-        batch_ids = sorted({m["batch_index"] for m in meta_tiles if m["batch_index"] >= 0})
+        # ---- build grid ----
+        sampler_ids = sorted({m["sampler_index"] for m in meta_tiles})
+        combo_ids = sorted({m["combo_index"] for m in meta_tiles})
+        batch_ids = sorted({m["batch_index"] for m in meta_tiles})
         if not batch_ids:
             batch_ids = [0]
 
-        # map (sampler_index, batch_index, combo_index) -> (tile, meta)
         cell_map = {}
         for t, m in zip(tiles, meta_tiles):
             key = (m["sampler_index"], m["batch_index"], m["combo_index"])
             cell_map[key] = (t, m)
 
         blank = torch.zeros_like(tiles[0])
-
         rows_tensors = []
         report_lines = []
         report_lines.append("# row\tcol\tsampler_idx\tsampler_label\tsampler\tscheduler\tcombo_idx\tsweep_tag\tbatch_idx\tseed")
 
         row_idx = 0
         for s_idx in sampler_ids:
-            # base meta for fallback label
             base_meta = next((m for m in meta_tiles if m["sampler_index"] == s_idx), None)
             for b_idx in batch_ids:
                 row_tiles = []
@@ -1132,7 +1125,6 @@ class UltraBenchmarkTester:
                         tile = blank
                         meta = base_meta
                     row_tiles.append(tile)
-
                     if meta is not None:
                         report_lines.append(
                             f"{row_idx}\t{col_idx}\t{s_idx}\t{meta['sampler_label']}\t"
@@ -1140,17 +1132,13 @@ class UltraBenchmarkTester:
                             f"{meta['sweep_tag']}\t{b_idx}\t{meta['seed']}"
                         )
                     col_idx += 1
-
-                row_cat = torch.cat(row_tiles, dim=2)  # concat along width
+                row_cat = torch.cat(row_tiles, dim=2)
                 rows_tensors.append(row_cat)
                 row_idx += 1
 
-        grid = torch.cat(rows_tensors, dim=1)          # concat along height
-
-        # ---- finalize report string ----
+        grid = torch.cat(rows_tensors, dim=1)
         report = "\n".join(report_lines)
 
-        # ---- optionally save report to disk as .txt ----
         if save_report:
             try:
                 try:
@@ -1169,7 +1157,6 @@ class UltraBenchmarkTester:
             except Exception as e:
                 report = report + f"\n# save_report_failed: {e}"
 
-        # free some memory
         del tiles, rows_tensors
         gc.collect()
         if torch.cuda.is_available():
@@ -1179,15 +1166,6 @@ class UltraBenchmarkTester:
 
 
 class UltraBenchmarkSave:
-    """
-    Save grid + per-tile images and write a TXT index
-    that maps grid position (row/col) → filename + sampler/sweep info.
-
-    Expected inputs:
-      - images: IMAGE tensor from UltraBenchmarkTester (grid)
-      - report: STRING from UltraBenchmarkTester (tab-separated)
-    """
-
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -1198,176 +1176,91 @@ class UltraBenchmarkSave:
                 "subfolder": ("STRING", {"default": "ultra_bench"}),
                 "save_grid_image": ("BOOLEAN", {"default": True}),
                 "save_individual_tiles": ("BOOLEAN", {"default": True}),
+                "include_metadata": ("BOOLEAN", {"default": True}),
             }
         }
 
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("index_txt",)
     FUNCTION = "save"
-    CATEGORY = "sampling/ultra"
 
-    def _save_tensor_image(self, tensor: torch.Tensor, path: str):
-        # tensor: [H, W, C] in [0,1]
-        if not isinstance(tensor, torch.Tensor):
-            raise RuntimeError("UltraBenchmarkSave expected a torch.Tensor")
-        img = tensor.detach().cpu().clamp(0.0, 1.0).numpy()
-        if img.ndim != 3 or img.shape[2] not in (1, 3, 4):
-            raise RuntimeError(f"UltraBenchmarkSave expected [H,W,C], got {img.shape}")
-        img = (img * 255.0).round().astype("uint8")
-        if img.shape[2] == 1:
-            # expand grayscale → RGB
-            img = img.repeat(3, axis=2)
-        pil = Image.fromarray(img)
-        pil.save(path)
+    def _save_tensor_image(self, tensor, path):
+        from PIL import Image
+        img = (tensor.clamp(0, 1) * 255).to(torch.uint8).cpu().numpy()
+        img = Image.fromarray(img)
+        img.save(path)
 
-    def _parse_report(self, report: str):
-        """
-        Parse UltraBenchmarkTester report string into a list of dicts.
-
-        Expected header:
-        # row\tcol\tsampler_idx\tsampler_label\tsampler\tscheduler\tcombo_idx\tsweep_tag\tbatch_idx\tseed
-        """
+    def _parse_report(self, report):
         rows = []
-        if not isinstance(report, str):
-            return rows
         for line in report.splitlines():
-            line = line.strip()
             if not line or line.startswith("#"):
                 continue
             parts = line.split("\t")
-            if len(parts) < 10:
-                continue
-            row = int(parts[0])
-            col = int(parts[1])
-            sampler_idx = int(parts[2])
-            sampler_label = parts[3]
-            sampler = parts[4]
-            scheduler = parts[5]
-            combo_idx = int(parts[6])
-            sweep_tag = parts[7]
-            batch_idx = int(parts[8])
-            seed = parts[9]
-            rows.append({
-                "row": row,
-                "col": col,
-                "sampler_idx": sampler_idx,
-                "sampler_label": sampler_label,
-                "sampler": sampler,
-                "scheduler": scheduler,
-                "combo_idx": combo_idx,
-                "sweep_tag": sweep_tag,
-                "batch_idx": batch_idx,
-                "seed": seed,
-            })
+            if len(parts) >= 10:
+                rows.append({
+                    "row": int(parts[0]), "col": int(parts[1]),
+                    "sampler_label": parts[3], "sampler": parts[4], "scheduler": parts[5],
+                    "sweep_tag": parts[7], "batch_idx": int(parts[8]), "seed": parts[9]
+                })
         return rows
 
-    def save(
-        self,
-        images,
-        report,
-        filename_prefix,
-        subfolder,
-        save_grid_image,
-        save_individual_tiles,
-    ):
-        if not isinstance(images, torch.Tensor):
-            raise RuntimeError("UltraBenchmarkSave expected IMAGE tensor")
-        if images.dim() != 4:
-            raise RuntimeError(f"UltraBenchmarkSave expected 4D tensor [B,H,W,C], got {tuple(images.shape)}")
+    def save(self, images, report, filename_prefix, subfolder, save_grid_image, save_individual_tiles, include_metadata):
+        import os, time
+        import folder_paths as paths
 
+        if not isinstance(images, torch.Tensor) or images.dim() != 4:
+            raise RuntimeError("Expected a 4D image tensor")
+
+        images = images[:1]
         b, H, W, C = images.shape
-        if b != 1:
-            # benchmark grid should be B=1; if not, use first
-            images = images[0:1]
-            b, H, W, C = images.shape
 
-        meta_rows = self._parse_report(report)
-        if not meta_rows:
-            raise RuntimeError("UltraBenchmarkSave: could not parse any rows from report STRING")
+        rows = self._parse_report(report)
+        if not rows:
+            raise RuntimeError("No report metadata found")
 
-        max_row = max(m["row"] for m in meta_rows)
-        max_col = max(m["col"] for m in meta_rows)
+        max_row = max(r["row"] for r in rows)
+        max_col = max(r["col"] for r in rows)
         rows_count = max_row + 1
         cols_count = max_col + 1
-
-        if H % rows_count != 0 or W % cols_count != 0:
-            raise RuntimeError(
-                f"UltraBenchmarkSave: grid size {H}x{W} not divisible by rows={rows_count}, cols={cols_count}"
-            )
 
         tile_h = H // rows_count
         tile_w = W // cols_count
 
-        # output dir = default ComfyUI output dir / subfolder
         try:
-            base_dir = paths.get_output_directory()
-        except Exception:
-            base_dir = "."
-        out_dir = os.path.join(base_dir, subfolder) if subfolder else base_dir
+            base = paths.get_output_directory()
+        except:
+            base = "."
+
+        out_dir = os.path.join(base, subfolder)
         os.makedirs(out_dir, exist_ok=True)
 
         stamp = time.strftime("%Y%m%d-%H%M%S")
         prefix = filename_prefix or "ultra_bench"
+        index_lines = ["# row\tcol\tfilename" + ("\tsampler_label\tsampler\tscheduler\tsweep_tag\tbatch_idx\tseed" if include_metadata else "")]
 
-        index_lines = []
-        index_lines.append(
-            "# row\tcol\tfilename\tsampler_label\tsampler\tscheduler\tsweep_tag\tbatch_idx\tseed"
-        )
+        meta_map = {(r["row"], r["col"]): r for r in rows}
 
-        # save full grid image
         if save_grid_image:
             grid_name = f"{prefix}_GRID_{stamp}.png"
-            grid_path = os.path.join(out_dir, grid_name)
-            self._save_tensor_image(images[0], grid_path)
+            self._save_tensor_image(images[0], os.path.join(out_dir, grid_name))
             index_lines.append(f"# grid\t-\t{grid_name}")
 
-        # meta lookup by (row, col)
-        meta_lookup = {}
-        for m in meta_rows:
-            key = (m["row"], m["col"])
-            meta_lookup[key] = m
-
-        # save each tile and record mapping in index
         if save_individual_tiles:
             for r in range(rows_count):
                 for c in range(cols_count):
-                    y0 = r * tile_h
-                    y1 = (r + 1) * tile_h
-                    x0 = c * tile_w
-                    x1 = (c + 1) * tile_w
-                    tile = images[:, y0:y1, x0:x1, :][0]
+                    tile = images[0, r*tile_h:(r+1)*tile_h, c*tile_w:(c+1)*tile_w, :]
+                    m = meta_map.get((r, c), {"sampler_label":"Unknown","sampler":"","scheduler":"","sweep_tag":"","batch_idx":0,"seed":""})
+                    fname = f"{prefix}_r{r}_c{c}_{m['sweep_tag']}_{m['sampler_label']}_{stamp}.png"
+                    self._save_tensor_image(tile, os.path.join(out_dir, fname))
+                    if include_metadata:
+                        index_lines.append(f"{r}\t{c}\t{fname}\t{m['sampler_label']}\t{m['sampler']}\t{m['scheduler']}\t{m['sweep_tag']}\t{m['batch_idx']}\t{m['seed']}")
+                    else:
+                        index_lines.append(f"{r}\t{c}\t{fname}")
 
-                    m = meta_lookup.get((r, c))
-                    if m is None:
-                        m = {
-                            "sampler_label": "Unknown",
-                            "sampler": "",
-                            "scheduler": "",
-                            "sweep_tag": "",
-                            "batch_idx": 0,
-                            "seed": "",
-                        }
-
-                    safe_sampler = m["sampler_label"].replace(" ", "_")
-                    safe_tag = str(m["sweep_tag"]).replace(" ", "_")
-                    tile_name = f"{prefix}_r{r}_c{c}_{safe_tag}_{safe_sampler}_{stamp}.png"
-                    tile_path = os.path.join(out_dir, tile_name)
-                    self._save_tensor_image(tile, tile_path)
-
-                    index_lines.append(
-                        f"{r}\t{c}\t{tile_name}\t{m['sampler_label']}\t{m['sampler']}\t"
-                        f"{m['scheduler']}\t{m['sweep_tag']}\t{m['batch_idx']}\t{m['seed']}"
-                    )
-
-        index_name = f"{prefix}_index_{stamp}.txt"
-        index_path = os.path.join(out_dir, index_name)
+        index_path = os.path.join(out_dir, f"{prefix}_index_{stamp}.txt")
         with open(index_path, "w", encoding="utf-8") as f:
             f.write("\n".join(index_lines))
-
-        # return index path so you see where it went
         return (index_path,)
-
-
 NODE_CLASS_MAPPINGS = {
     "UltraDuperSampler": UltraDuperSampler,
     "UltraSamplerMatrix": UltraSamplerMatrix,
