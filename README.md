@@ -6,6 +6,8 @@ Most of my work here is cooked up with the help of ChatGPT 5. i come up with nea
 Oh this is easy! you just download the .py file or copy pasta the source into ComfyUi's custom nodes folder:
 C:\ComfyUI\custom_nodes <- in here and BAM it should work, if it doesen't comfy probably have patched thier dependancy somehow that messed it up.
 
+Added compatibility to just drop in the whole Johnaconda-ComfyUI-Custom-Nodes dirr with the nodes inside, __init__.py will tell comfyui to load theese.
+
 <img src="https://raw.githubusercontent.com/Johnaconda/Johnaconda-ComfyUI-Custom-Nodes/refs/heads/main/images/Howtoinstall.png?raw=true" alt="CombinerExample" title="Combiner preview usage">
 
 # prompt_combiner_node.py
