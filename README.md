@@ -31,10 +31,16 @@ Now updated with an Ultra HiRes node (:!
 <img src="https://raw.githubusercontent.com/Johnaconda/Johnaconda-ComfyUI-Custom-Nodes/refs/heads/main/images/Benchmark.PNG?raw=true" alt="CombinerExample" title="Benchmark tester preview usage">
 
 
-# The SDXL Dual Model merger
+# The SDXL Dual Model merger now updated to Model Merger Pro!  
 
-this is a double node for merging models with a little more control, have fun with it.
+this is a special node for merging models with a little more control, have fun with it.
+
 
 <img src="https://raw.githubusercontent.com/Johnaconda/Johnaconda-ComfyUI-Custom-Nodes/refs/heads/main/images/merger2.png?raw=true" alt="merger" title="The merger">
 
 <img src="https://raw.githubusercontent.com/Johnaconda/Johnaconda-ComfyUI-Custom-Nodes/refs/heads/main/images/Merger.png?raw=true" alt="merger workflow" title="merger workflow preview usage">
+
+
+# Package now comes with an Example workflow .json in the example dir!
+
+<img src="https://raw.githubusercontent.com/Johnaconda/Johnaconda-ComfyUI-Custom-Nodes/refs/heads/main/images/wfexample.PNG?raw=true" alt="merger workflow" title="merger workflow preview usage">

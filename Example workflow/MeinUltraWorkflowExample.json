@@ -1,0 +1,2471 @@
+{
+  "id": "ee0d319e-a08a-4cc6-95ea-4e9683f8bb15",
+  "revision": 0,
+  "last_node_id": 78,
+  "last_link_id": 114,
+  "nodes": [
+    {
+      "id": 14,
+      "type": "SaveImage",
+      "pos": [
+        9470,
+        2140
+      ],
+      "size": [
+        890,
+        960
+      ],
+      "flags": {},
+      "order": 35,
+      "mode": 2,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 75
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.33"
+      },
+      "widgets_values": [
+        "ComfyUI-Ultratest"
+      ]
+    },
+    {
+      "id": 36,
+      "type": "UltraNoiseSweeps",
+      "pos": [
+        7610,
+        2200
+      ],
+      "size": [
+        274.07421875,
+        562
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 2,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "special_noise",
+          "type": "DICT",
+          "links": [
+            66
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "UltraNoiseSweeps"
+      },
+      "widgets_values": [
+        "during",
+        false,
+        "Early Punch (linear↓, coarse→fine)",
+        "gaussian",
+        false,
+        1,
+        2,
+        2,
+        0.35,
+        "exp_down",
+        0.05,
+        1,
+        1,
+        "early",
+        true,
+        "balanced",
+        "mid",
+        "coarse",
+        "fine",
+        0,
+        "",
+        0
+      ],
+      "color": "#2a363b",
+      "bgcolor": "#3f5159"
+    },
+    {
+      "id": 5,
+      "type": "EmptyLatentImage",
+      "pos": [
+        7310,
+        2160
+      ],
+      "size": [
+        270,
+        106
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 2,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            76
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "EmptyLatentImage"
+      },
+      "widgets_values": [
+        512,
+        512,
+        1
+      ]
+    },
+    {
+      "id": 2,
+      "type": "CheckpointLoaderSimple",
+      "pos": [
+        6970,
+        2180
+      ],
+      "size": [
+        270,
+        98
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 2,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            63
+          ]
+        },
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            4,
+            5
+          ]
+        },
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            77
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CheckpointLoaderSimple"
+      },
+      "widgets_values": [
+        "MeinNewestMerger_00001_.safetensors"
+      ]
+    },
+    {
+      "id": 46,
+      "type": "UltraBenchmarkSave",
+      "pos": [
+        9500,
+        3190
+      ],
+      "size": [
+        274.068359375,
+        178
+      ],
+      "flags": {},
+      "order": 36,
+      "mode": 2,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 78
+        }
+      ],
+      "outputs": [
+        {
+          "name": "index_txt",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "UltraBenchmarkSave"
+      },
+      "widgets_values": [
+        "",
+        "ultra_bench",
+        "ultra_bench",
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "id": 3,
+      "type": "CLIPTextEncode",
+      "pos": [
+        7180,
+        2320
+      ],
+      "size": [
+        400,
+        200
+      ],
+      "flags": {},
+      "order": 26,
+      "mode": 2,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 4
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            64
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        "A vibrant fantasy forest scene, a graceful white deer with luminous antlers wanders through soft morning mist, golden sunbeams piercing through towering ancient trees, delicate wildflowers glowing in shades of violet and teal, ultra-detailed illustration, digital painting, finely textured fur, cinematic lighting, depth of field, high resolution"
+      ],
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
+      "id": 4,
+      "type": "CLIPTextEncode",
+      "pos": [
+        7170,
+        2600
+      ],
+      "size": [
+        400,
+        200
+      ],
+      "flags": {},
+      "order": 27,
+      "mode": 2,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 5
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            65
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        "low resolution, blurry, watermark, extra limbs, unnatural proportions, cartoonish"
+      ],
+      "color": "#322",
+      "bgcolor": "#533"
+    },
+    {
+      "id": 38,
+      "type": "UltraNoiseSweeps",
+      "pos": [
+        7920,
+        2200
+      ],
+      "size": [
+        274.07421875,
+        562
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 2,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "special_noise",
+          "type": "DICT",
+          "links": [
+            80
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "UltraNoiseSweeps"
+      },
+      "widgets_values": [
+        "during",
+        false,
+        "Early Punch (linear↓, coarse→fine)",
+        "gaussian",
+        false,
+        2,
+        2,
+        2,
+        0.35,
+        "exp_down",
+        0.05,
+        1,
+        1,
+        "early",
+        true,
+        "balanced",
+        "mid",
+        "coarse",
+        "fine",
+        0,
+        "",
+        0
+      ],
+      "color": "#2a363b",
+      "bgcolor": "#3f5159"
+    },
+    {
+      "id": 40,
+      "type": "UltraNoiseSweeps",
+      "pos": [
+        8220,
+        2200
+      ],
+      "size": [
+        274.07421875,
+        562
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 2,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "special_noise",
+          "type": "DICT",
+          "links": [
+            81
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "UltraNoiseSweeps"
+      },
+      "widgets_values": [
+        "during",
+        false,
+        "Early Punch (linear↓, coarse→fine)",
+        "gaussian",
+        false,
+        3,
+        2,
+        2,
+        0.35,
+        "exp_down",
+        0.05,
+        1,
+        1,
+        "early",
+        true,
+        "balanced",
+        "mid",
+        "coarse",
+        "fine",
+        0,
+        "",
+        0
+      ],
+      "color": "#2a363b",
+      "bgcolor": "#3f5159"
+    },
+    {
+      "id": 42,
+      "type": "UltraNoiseSweeps",
+      "pos": [
+        8540,
+        2200
+      ],
+      "size": [
+        274.07421875,
+        562
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 2,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "special_noise",
+          "type": "DICT",
+          "links": [
+            82
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "UltraNoiseSweeps"
+      },
+      "widgets_values": [
+        "during",
+        false,
+        "Early Punch (linear↓, coarse→fine)",
+        "gaussian",
+        false,
+        4,
+        2,
+        2,
+        0.35,
+        "exp_down",
+        0.05,
+        1,
+        1,
+        "early",
+        true,
+        "balanced",
+        "mid",
+        "coarse",
+        "fine",
+        0,
+        "",
+        0
+      ],
+      "color": "#2a363b",
+      "bgcolor": "#3f5159"
+    },
+    {
+      "id": 34,
+      "type": "UltraBenchmarkTester",
+      "pos": [
+        9170,
+        2210
+      ],
+      "size": [
+        270,
+        934
+      ],
+      "flags": {},
+      "order": 31,
+      "mode": 2,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 63
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 64
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 65
+        },
+        {
+          "name": "latent",
+          "type": "LATENT",
+          "link": 76
+        },
+        {
+          "name": "vae",
+          "shape": 7,
+          "type": "VAE",
+          "link": 77
+        },
+        {
+          "name": "special_cfg",
+          "shape": 7,
+          "type": "DICT",
+          "link": null
+        },
+        {
+          "name": "sampler_matrix",
+          "shape": 7,
+          "type": "DICT",
+          "link": 79
+        },
+        {
+          "name": "sweep_A",
+          "shape": 7,
+          "type": "DICT",
+          "link": 66
+        },
+        {
+          "name": "script_A",
+          "shape": 7,
+          "type": "SCRIPT",
+          "link": 111
+        },
+        {
+          "name": "sweep_B",
+          "shape": 7,
+          "type": "DICT",
+          "link": 80
+        },
+        {
+          "name": "script_B",
+          "shape": 7,
+          "type": "SCRIPT",
+          "link": 112
+        },
+        {
+          "name": "sweep_C",
+          "shape": 7,
+          "type": "DICT",
+          "link": 81
+        },
+        {
+          "name": "script_C",
+          "shape": 7,
+          "type": "SCRIPT",
+          "link": 113
+        },
+        {
+          "name": "sweep_D",
+          "shape": 7,
+          "type": "DICT",
+          "link": 82
+        },
+        {
+          "name": "script_D",
+          "shape": 7,
+          "type": "SCRIPT",
+          "link": 114
+        }
+      ],
+      "outputs": [
+        {
+          "name": "grid",
+          "type": "IMAGE",
+          "links": [
+            75,
+            78
+          ]
+        },
+        {
+          "name": "report",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "UltraBenchmarkTester"
+      },
+      "widgets_values": [
+        12,
+        5,
+        "euler",
+        "simple",
+        1,
+        1038891742124710,
+        "fixed",
+        1,
+        0,
+        true,
+        false,
+        6,
+        true,
+        false,
+        false,
+        "ultra_benchmark"
+      ],
+      "color": "#322",
+      "bgcolor": "#533"
+    },
+    {
+      "id": 48,
+      "type": "UltraSamplerMatrix",
+      "pos": [
+        8860,
+        2330
+      ],
+      "size": [
+        270,
+        634
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 2,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "sampler_matrix",
+          "type": "DICT",
+          "links": [
+            79
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "UltraSamplerMatrix"
+      },
+      "widgets_values": [
+        6,
+        "euler_ancestral",
+        "simple",
+        "S1",
+        true,
+        "euler_ancestral",
+        "normal",
+        "S2",
+        true,
+        "euler_ancestral",
+        "ddim_uniform",
+        "S3",
+        true,
+        "euler_ancestral",
+        "beta",
+        "S4",
+        true,
+        "euler_ancestral",
+        "linear_quadratic",
+        "S5",
+        true,
+        "euler_ancestral",
+        "kl_optimal",
+        "S6"
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 50,
+      "type": "FromStateDictPro",
+      "pos": [
+        5250,
+        3370
+      ],
+      "size": [
+        258.7662048339844,
+        66
+      ],
+      "flags": {},
+      "order": 30,
+      "mode": 2,
+      "inputs": [
+        {
+          "name": "state_dict",
+          "type": "STATE_DICT",
+          "link": 83
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "links": [
+            84
+          ]
+        },
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "links": [
+            85,
+            86
+          ]
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "links": [
+            87
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "FromStateDictPro"
+      },
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 53,
+      "type": "CLIPTextEncode",
+      "pos": [
+        5240,
+        3730
+      ],
+      "size": [
+        400,
+        200
+      ],
+      "flags": {},
+      "order": 34,
+      "mode": 2,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 86
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            90
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        ""
+      ],
+      "color": "#322",
+      "bgcolor": "#533"
+    },
+    {
+      "id": 54,
+      "type": "EmptyLatentImage",
+      "pos": [
+        5260,
+        3990
+      ],
+      "size": [
+        270,
+        106
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 2,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            88
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "EmptyLatentImage"
+      },
+      "widgets_values": [
+        512,
+        512,
+        1
+      ]
+    },
+    {
+      "id": 57,
+      "type": "PreviewImage",
+      "pos": [
+        6320,
+        3600
+      ],
+      "size": [
+        290,
+        210
+      ],
+      "flags": {},
+      "order": 41,
+      "mode": 2,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 94
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "PreviewImage"
+      }
+    },
+    {
+      "id": 55,
+      "type": "VAEDecode",
+      "pos": [
+        6410,
+        3450
+      ],
+      "size": [
+        170,
+        46
+      ],
+      "flags": {},
+      "order": 42,
+      "mode": 2,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 91
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 92
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            93
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAEDecode"
+      }
+    },
+    {
+      "id": 61,
+      "type": "PromptCombiner",
+      "pos": [
+        6830,
+        4000
+      ],
+      "size": [
+        510,
+        240
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "prompt",
+          "type": "STRING",
+          "links": [
+            97
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PromptCombiner"
+      },
+      "widgets_values": [
+        "masterpiece, 3d, soft shadows, best quality",
+        "a sunset at the beach with a couple sitting under a palm tree"
+      ],
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
+      "id": 63,
+      "type": "CLIPTextEncode",
+      "pos": [
+        7120,
+        3850
+      ],
+      "size": [
+        210.29940795898438,
+        88
+      ],
+      "flags": {},
+      "order": 28,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 96
+        },
+        {
+          "name": "text",
+          "type": "STRING",
+          "widget": {
+            "name": "text"
+          },
+          "link": 97
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            99
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        ""
+      ],
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
+      "id": 64,
+      "type": "CLIPTextEncode",
+      "pos": [
+        6830,
+        4280
+      ],
+      "size": [
+        400,
+        200
+      ],
+      "flags": {},
+      "order": 29,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 98
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            100
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        ""
+      ],
+      "color": "#322",
+      "bgcolor": "#533"
+    },
+    {
+      "id": 59,
+      "type": "CheckpointLoaderSimple",
+      "pos": [
+        6810,
+        3830
+      ],
+      "size": [
+        270,
+        98
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            104
+          ]
+        },
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            96,
+            98
+          ]
+        },
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            105
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CheckpointLoaderSimple"
+      },
+      "widgets_values": [
+        "MeinNewestMerger_00001_.safetensors"
+      ]
+    },
+    {
+      "id": 69,
+      "type": "EmptyLatentImage",
+      "pos": [
+        6830,
+        4530
+      ],
+      "size": [
+        270,
+        106
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            106
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "EmptyLatentImage"
+      },
+      "widgets_values": [
+        1024,
+        1024,
+        1
+      ],
+      "color": "#323",
+      "bgcolor": "#535"
+    },
+    {
+      "id": 72,
+      "type": "SaveImage",
+      "pos": [
+        8450,
+        3840
+      ],
+      "size": [
+        270,
+        270
+      ],
+      "flags": {},
+      "order": 40,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 109
+        }
+      ],
+      "outputs": [],
+      "properties": {},
+      "widgets_values": [
+        "ComfyUI"
+      ]
+    },
+    {
+      "id": 65,
+      "type": "UltraNoiseSweeps",
+      "pos": [
+        7380,
+        3860
+      ],
+      "size": [
+        274.07421875,
+        562
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "special_noise",
+          "type": "DICT",
+          "links": [
+            101
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "UltraNoiseSweeps"
+      },
+      "widgets_values": [
+        "during",
+        false,
+        "Early Punch (linear↓, coarse→fine)",
+        "gaussian",
+        false,
+        2,
+        4,
+        2,
+        0.35,
+        "linear_down",
+        0,
+        1,
+        1,
+        "early",
+        true,
+        "balanced",
+        "mid",
+        "coarse",
+        "fine",
+        0,
+        "",
+        0
+      ],
+      "color": "#2a363b",
+      "bgcolor": "#3f5159"
+    },
+    {
+      "id": 67,
+      "type": "UltraHiResScript",
+      "pos": [
+        7380,
+        4480
+      ],
+      "size": [
+        285.41796875,
+        682
+      ],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "script",
+          "type": "SCRIPT",
+          "links": [
+            102
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "UltraHiResScript"
+      },
+      "widgets_values": [
+        "both",
+        1.25,
+        0,
+        0,
+        0,
+        0,
+        0,
+        8,
+        0.36,
+        1,
+        true,
+        664806714637229,
+        "randomize",
+        "nearest-exact",
+        "bicubic",
+        true,
+        0.15,
+        0.8,
+        0.08,
+        0.06,
+        "keep_original",
+        0,
+        0,
+        0,
+        "bicubic",
+        true,
+        false
+      ],
+      "color": "#223",
+      "bgcolor": "#335"
+    },
+    {
+      "id": 73,
+      "type": "Note",
+      "pos": [
+        5640,
+        3490
+      ],
+      "size": [
+        210,
+        200
+      ],
+      "flags": {},
+      "order": 13,
+      "mode": 2,
+      "inputs": [],
+      "outputs": [],
+      "properties": {},
+      "widgets_values": [
+        "to save checkpoint\njust route save checkpoint above with the instantiate from STATE_DICT and your merge will be saved at \"output/checkpoints\"\n"
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 52,
+      "type": "CLIPTextEncode",
+      "pos": [
+        5240,
+        3480
+      ],
+      "size": [
+        400,
+        200
+      ],
+      "flags": {},
+      "order": 33,
+      "mode": 2,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 85
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            89
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        ""
+      ],
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
+      "id": 51,
+      "type": "UltraDuperSampler",
+      "pos": [
+        5850,
+        3360
+      ],
+      "size": [
+        460,
+        790
+      ],
+      "flags": {},
+      "order": 39,
+      "mode": 2,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 84
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 89
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 90
+        },
+        {
+          "name": "latent",
+          "type": "LATENT",
+          "link": 88
+        },
+        {
+          "name": "vae",
+          "shape": 7,
+          "type": "VAE",
+          "link": 87
+        },
+        {
+          "name": "special_cfg",
+          "shape": 7,
+          "type": "DICT",
+          "link": null
+        },
+        {
+          "name": "special_noise",
+          "shape": 7,
+          "type": "DICT",
+          "link": null
+        },
+        {
+          "name": "script",
+          "shape": 7,
+          "type": "SCRIPT",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "latent",
+          "type": "LATENT",
+          "links": [
+            91
+          ]
+        },
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "links": [
+            94
+          ]
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "links": [
+            92
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "UltraDuperSampler"
+      },
+      "widgets_values": [
+        30,
+        7,
+        "euler",
+        "simple",
+        1,
+        791831204972469,
+        "randomize",
+        1,
+        0,
+        true,
+        false,
+        false,
+        true
+      ],
+      "color": "#2a363b",
+      "bgcolor": "#3f5159"
+    },
+    {
+      "id": 58,
+      "type": "CheckpointSave",
+      "pos": [
+        5550,
+        3350
+      ],
+      "size": [
+        270,
+        98
+      ],
+      "flags": {},
+      "order": 14,
+      "mode": 2,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": null
+        },
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": null
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": null
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "CheckpointSave"
+      },
+      "widgets_values": [
+        "checkpoints/MeinNewestMerger"
+      ]
+    },
+    {
+      "id": 66,
+      "type": "UltraDuperSampler",
+      "pos": [
+        7700,
+        3870
+      ],
+      "size": [
+        450,
+        930
+      ],
+      "flags": {},
+      "order": 32,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 104
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 99
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 100
+        },
+        {
+          "name": "latent",
+          "type": "LATENT",
+          "link": 106
+        },
+        {
+          "name": "vae",
+          "shape": 7,
+          "type": "VAE",
+          "link": 105
+        },
+        {
+          "name": "special_cfg",
+          "shape": 7,
+          "type": "DICT",
+          "link": 103
+        },
+        {
+          "name": "special_noise",
+          "shape": 7,
+          "type": "DICT",
+          "link": 101
+        },
+        {
+          "name": "script",
+          "shape": 7,
+          "type": "SCRIPT",
+          "link": 102
+        }
+      ],
+      "outputs": [
+        {
+          "name": "latent",
+          "type": "LATENT",
+          "links": [
+            107
+          ]
+        },
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "links": [
+            108
+          ]
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "links": [
+            110
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "UltraDuperSampler"
+      },
+      "widgets_values": [
+        14,
+        7,
+        "euler_ancestral",
+        "normal",
+        1,
+        92819335606642,
+        "randomize",
+        1.12,
+        0,
+        true,
+        false,
+        false,
+        true
+      ],
+      "color": "#322",
+      "bgcolor": "#533"
+    },
+    {
+      "id": 71,
+      "type": "PreviewImage",
+      "pos": [
+        8190,
+        4030
+      ],
+      "size": [
+        900,
+        770
+      ],
+      "flags": {},
+      "order": 37,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 108
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "PreviewImage"
+      },
+      "widgets_values": [],
+      "color": "#233",
+      "bgcolor": "#355"
+    },
+    {
+      "id": 70,
+      "type": "VAEDecode",
+      "pos": [
+        8200,
+        3900
+      ],
+      "size": [
+        140,
+        50
+      ],
+      "flags": {},
+      "order": 38,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 107
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 110
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            109
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAEDecode"
+      }
+    },
+    {
+      "id": 37,
+      "type": "UltraHiResScript",
+      "pos": [
+        7600,
+        2830
+      ],
+      "size": [
+        285.41796875,
+        682
+      ],
+      "flags": {},
+      "order": 15,
+      "mode": 2,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "script",
+          "type": "SCRIPT",
+          "links": [
+            111
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "UltraHiResScript"
+      },
+      "widgets_values": [
+        "both",
+        1.5,
+        0,
+        0,
+        0,
+        0,
+        0,
+        12,
+        0.45,
+        1,
+        true,
+        273347105746507,
+        "randomize",
+        "nearest-exact",
+        "bicubic",
+        true,
+        0.15,
+        0.8,
+        0.08,
+        0.06,
+        "keep_original",
+        0,
+        0,
+        0,
+        "bicubic",
+        true,
+        false
+      ],
+      "color": "#223",
+      "bgcolor": "#335"
+    },
+    {
+      "id": 39,
+      "type": "UltraHiResScript",
+      "pos": [
+        7920,
+        2830
+      ],
+      "size": [
+        285.41796875,
+        682
+      ],
+      "flags": {},
+      "order": 16,
+      "mode": 2,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "script",
+          "type": "SCRIPT",
+          "links": [
+            112
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "UltraHiResScript"
+      },
+      "widgets_values": [
+        "both",
+        1.5,
+        0,
+        0,
+        0,
+        0,
+        0,
+        12,
+        0.45,
+        1,
+        true,
+        569320340242216,
+        "randomize",
+        "nearest-exact",
+        "bicubic",
+        true,
+        0.15,
+        0.8,
+        0.08,
+        0.06,
+        "keep_original",
+        0,
+        0,
+        0,
+        "bicubic",
+        true,
+        false
+      ],
+      "color": "#223",
+      "bgcolor": "#335"
+    },
+    {
+      "id": 41,
+      "type": "UltraHiResScript",
+      "pos": [
+        8230,
+        2830
+      ],
+      "size": [
+        285.41796875,
+        682
+      ],
+      "flags": {},
+      "order": 17,
+      "mode": 2,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "script",
+          "type": "SCRIPT",
+          "links": [
+            113
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "UltraHiResScript"
+      },
+      "widgets_values": [
+        "both",
+        1.5,
+        0,
+        0,
+        0,
+        0,
+        0,
+        12,
+        0.45,
+        1,
+        true,
+        447668448194170,
+        "randomize",
+        "nearest-exact",
+        "bicubic",
+        true,
+        0.15,
+        0.8,
+        0.08,
+        0.06,
+        "keep_original",
+        0,
+        0,
+        0,
+        "bicubic",
+        true,
+        false
+      ],
+      "color": "#223",
+      "bgcolor": "#335"
+    },
+    {
+      "id": 43,
+      "type": "UltraHiResScript",
+      "pos": [
+        8540,
+        2830
+      ],
+      "size": [
+        285.41796875,
+        682
+      ],
+      "flags": {},
+      "order": 18,
+      "mode": 2,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "script",
+          "type": "SCRIPT",
+          "links": [
+            114
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "UltraHiResScript"
+      },
+      "widgets_values": [
+        "both",
+        1.5,
+        0,
+        0,
+        0,
+        0,
+        0,
+        12,
+        0.45,
+        1,
+        true,
+        563176297312600,
+        "randomize",
+        "nearest-exact",
+        "bicubic",
+        true,
+        0.15,
+        0.8,
+        0.08,
+        0.06,
+        "keep_original",
+        0,
+        0,
+        0,
+        "bicubic",
+        true,
+        false
+      ],
+      "color": "#223",
+      "bgcolor": "#335"
+    },
+    {
+      "id": 49,
+      "type": "ModelMergerPro",
+      "pos": [
+        4940,
+        3370
+      ],
+      "size": [
+        270,
+        774
+      ],
+      "flags": {},
+      "order": 19,
+      "mode": 2,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "state_dict",
+          "type": "STATE_DICT",
+          "links": [
+            83
+          ]
+        },
+        {
+          "name": "summary",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ModelMergerPro"
+      },
+      "widgets_values": [
+        "ComfyUI_00001_.safetensors",
+        "ComfyUI_00002_.safetensors",
+        "<none>",
+        "<none>",
+        "<none>",
+        "<none>",
+        0.5,
+        0,
+        0,
+        0,
+        0,
+        0.5,
+        0.5,
+        0,
+        0,
+        "weighted_sum",
+        "weighted_sum",
+        "all",
+        "both",
+        0.55,
+        0.5,
+        0.45,
+        "constant",
+        "constant",
+        "constant",
+        1,
+        0,
+        true,
+        "strict",
+        "auto"
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 56,
+      "type": "SaveImage",
+      "pos": [
+        6390,
+        3350
+      ],
+      "size": [
+        270,
+        58
+      ],
+      "flags": {},
+      "order": 43,
+      "mode": 2,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 93
+        }
+      ],
+      "outputs": [],
+      "properties": {},
+      "widgets_values": [
+        "ComfyUI"
+      ]
+    },
+    {
+      "id": 74,
+      "type": "Note",
+      "pos": [
+        4530,
+        3380
+      ],
+      "size": [
+        340,
+        800
+      ],
+      "flags": {},
+      "order": 20,
+      "mode": 2,
+      "inputs": [],
+      "outputs": [],
+      "properties": {},
+      "widgets_values": [
+        "# Model Merger Pro – User Guide\n\n## Step 1: Load the node  \n1. Open your workflow in ComfyUI.  \n2. Add the “Model Merger Pro” node (or whichever merger node you have installed).  \n3. Connect two model input nodes (Model A and Model B) into the merger node.\n\n## Step 2: Configure inputs  \n- **Model A** – The base model checkpoint.  \n- **Model B** – The model you want to blend into Model A.  \n- **Merge ratio / weight** – Set how much influence each model has.  \n- **Merge method** – Choose e.g. *linear interpolation (lerp)*, *spherical interpolation (slerp)*, or *gradient blending*.  \n- **Seed (optional)** – For reproducibility of the merge process.  \n- **Advanced options** (if supported):  \n  - Layer mask: Protect specific layers from being changed.  \n  - Sparsification/drop-rate: Control how many weights are changed or dropped.  \n  - Iterations: How many passes of merging to perform.  \n  - Clear cache: Free memory between steps to avoid out-of-VRAM errors.\n\n## Step 3: Execute the merge  \n1. Double-check all inputs and settings.  \n2. Click **Merge** or execute the node.  \n3. Monitor the log/output for any issues: missing keys, out-of-memory, mismatched dtype, etc.  \n4. Wait until the merged model checkpoint is created and saved (or outputs as a model object).\n\n## Step 4: Save and Version the merged model  \n- Give the merged model a clear name (e.g., `MergedModel_50A_50B.ckpt`).  \n- Save it in your checkpoints or model library folder.  \n- Record the merge settings used (ratio, method, seed, layers masked) in a text note alongside the model.\n\n## Step 5: Test the merged model  \n1. Load the merged model into a workflow (e.g., your illustration pipeline).  \n2. Use your standard test prompt (for example: *“A vibrant fantasy forest scene, a graceful white deer…”*).  \n3. Compare results between Model A, Model B, and the merged model.  \n4. Check for artifacts, style drift, unexpected behaviour.  \n5. If needed: revert to previous version or adjust the merge ratio/mask and repeat.\n\n## Step 6: Tweak and iterate  \n- If the merged model seems dominated by one source model, reduce that model’s weight.  \n- If certain features are lost (e.g., lighting, detail, subject behaviour), try locking those layers via mask so they remain from Model A or B.  \n- Use consistent seed and prompt when comparing versions to isolate differences.  \n- Keep a log of merge rounds (version, settings, observations) to build a “what works” history.\n\n## Troubleshooting common issues  \n- **Key-mismatch errors (“could not patch key …”)**: The two models must have compatible architecture (same UNet/CLIP config) or you’ll need to ignore missing keys.  \n- **CUDA Out of Memory**: Try enabling “clear cache” or reduce iterations. Use FP16 if available.  \n- **Artifacts or weird style**: Lower the influence of the “weaker” model or protect specific layers so they don’t get overwritten entirely.  \n- **No visible change**: Ensure the ratio is non‐zero for both A and B and test prompt is strong enough to reveal differences.\n\n---\n\n## Best Practices Summary  \n- Start with a 50/50 merge and compare.  \n- Use the same test prompt and seed when comparing versions.  \n- Record settings and version names diligently.  \n- Merge only when you’re satisfied with both base models.  \n- Retain original models as backups.\n\n---  \nEnd of guide.  "
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 77,
+      "type": "Note",
+      "pos": [
+        10020,
+        3850
+      ],
+      "size": [
+        480,
+        630
+      ],
+      "flags": {},
+      "order": 21,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "title": "Ultra Sampler – Quick Guide",
+      "properties": {},
+      "widgets_values": [
+        " Ultra Sampler – Quick Guide\n\n## 1. Concept  \nUltra Sampler (your matrix/benchmark sampler node) lets you test multiple sampler/scheduler combos across sweeps/scripts in a grid layout (rows = samplers, columns = sweep/script combos). Excellent for benchmarking and visual comparison.\n\n## 2. Setup in your workflow  \n- Place the Ultra Sampler Test node (e.g., UltraBenchmarkTester).  \n- Wire:  \n  - Model, positive, negative, latent → input.  \n  - Sampler matrix node → sampler_matrix input.  \n  - Sweep/script combos (A/B/C/D or base) → inputs.  \n- Configure the sampler matrix: enable multiple rows, set sampler and scheduler names, labels.  \n- Configure sweep/script combos: set one or more (A/B/C/D) combos.\n\n## 3. Key parameters & controls  \n- **sampler_matrix**: Dictionary with `pairs` listing sampler/scheduler combos. Row count = number of entries.  \n- **combo_defs**: Derived from your sweep/script combos; column count.  \n- **emit_image**: If True, outputs grid image; else no image.  \n- **save_report**: If True, creates tab-separated report listing sampler_idx, combo_idx, sweep_tag, etc.  \n- **purge_vram_each**: If True, runs `torch.cuda.empty_cache()` between cells to avoid VRAM leaks.\n\n## 4. Use-case example  \n- Sampler matrix: S1→(sampler=“karras”, scheduler=“dpmsolver”), S2→(sampler=“res”, scheduler=“plms”).  \n- Sweeps/scripts: A→script “scale_detail”, B→script “texture_boost”.  \n- Run the Ultra Sampler Tester.  \n- Result: 2 rows × 2 columns = 4 image tiles in a grid + report listing each combination.\n\n## 5. Best-practice tips  \n- Fix the seed for all runs (benchmark fairness).  \n- Use moderate resolution to test quickly before upscale.  \n- Use descriptive labels for each row (S1, S2…) so report is clear.  \n- Archive report + grid image for each benchmark session.\n\n## 6. Troubleshooting  \n- Only one row or column appears: ensure multiple sampler rows are enabled and multiple sweep/script combos are non-null.  \n- Grid image missing: Check `emit_image=True`.  \n- Report empty/crashed: Check `save_report=True` and file output directory is accessible.\n"
+      ],
+      "color": "#322",
+      "bgcolor": "#533"
+    },
+    {
+      "id": 75,
+      "type": "Note",
+      "pos": [
+        9430,
+        3850
+      ],
+      "size": [
+        480,
+        630
+      ],
+      "flags": {},
+      "order": 22,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "title": "Ultra Noise Sweeps – Quick Guide",
+      "properties": {},
+      "widgets_values": [
+        "# Ultra Noise Sweeps – Quick Guide\n\n## 1. Concept  \n“Noise&nbsp;Sweep” allows you to systematically vary the noise or latent “special_noise” input across multiple generations. Use it to benchmark how changing noise injection affects image output.\n\n## 2. Setup in your workflow  \n- Add the *UltraNoiseSweep* node (or equivalent) before the sampling node.  \n- Connect:  \n  - “latent” output → noise sweep node input.  \n  - Sweep settings node/parameter → configure range (e.g., start_noise, step count).  \n  - Script node (if using) → set actions based on each sweep.  \n- Wire its output into your sampler/node chain so each sweep produces a distinct image.\n\n## 3. Parameters & controls  \n- **start_noise**: Initial noise scale value.  \n- **end_noise** or **steps**: Defines how many sweep passes or how far the noise range goes.  \n- **script per sweep**: Optionally apply a different script per noise level.  \n- **emit_image**: Ensure each pass outputs an image tile.  \n- **save_report**: Log the noise value per pass for comparison.\n\n## 4. Use-case example  \n- Set start_noise = 0.5, steps = 4 → generate four images at noise levels 0.5, 0.625, 0.75, 0.875.  \n- Might compare how detail/resolution vs. creativity changes with more noise.  \n- Useful when benchmarking multiple sampler/scheduler combos with fixed noise sweep.\n\n## 5. Best-practice tips  \n- Use the same seed for all sweeps to isolate noise impact.  \n- Increase sweep count only if variations are subtle.  \n- Record the noise value and resulting quality for later reference.  \n- If VRAM constrained, keep sweeps small and generate tiled grid instead of full batch.\n\n## 6. Troubleshooting  \n- If all images look identical: ensure the sweep node is actually changing the noise value each pass.  \n- If noise blowouts cause artifacts: reduce max noise or use smaller steps.  \n- If flow stops mid-sweep: check that `emit_image=True` and no early return logic blocks after first pass.\n"
+      ],
+      "color": "#2a363b",
+      "bgcolor": "#3f5159"
+    },
+    {
+      "id": 76,
+      "type": "Note",
+      "pos": [
+        9430,
+        4550
+      ],
+      "size": [
+        480,
+        630
+      ],
+      "flags": {},
+      "order": 23,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "title": "Hi-Res Generation Mode – Quick Guide",
+      "properties": {},
+      "widgets_values": [
+        "# Hi-Res Generation Mode – Quick Guide\n\n## 1. Concept  \nHi-Res mode uses a two-stage or tiled upscaling approach: generate a base image at normal resolution then upscale or refine it to high resolution (4K+, etc.). Useful for production-grade illustration.\n\n## 2. Workflow setup  \n- Create standard txt2img node chain → base resolution (e.g., 1024×1024).  \n- Add a **Hi-Res script/node** after the base generation node:  \n  - Load image → upscale (model, tiles, batch) → optionally redraw/refine.  \n- Connect upscaler or high-res fix node (e.g., SUPIR, tiled redraw) to final output.\n\n## 3. Key parameters  \n- **Base resolution**: Use moderate size to conserve VRAM.  \n- **Upscale factor**: 2×, 4× or more depending on final dimension.  \n- **Tile size**: If using tiling, pick size that fits VRAM (e.g., 512×512).  \n- **Denoise/refine strength**: Set how much upscaler should preserve vs change details.  \n- **Batch size**: Keep small for high resolution.\n\n## 4. Use-case example  \n- Generate 1024×1024 image with your illustration prompt.  \n- Upscale via x4 → 4096×4096 using tile-batch node.  \n- Apply minor refinement script: denoise=0.6, preserve structure but enhance texture/detail.  \n- Save final high-res output.\n\n## 5. Best-practice tips  \n- Always preview the base image before upscaling to avoid wasting time.  \n- Use the same seed when comparing various upscalers.  \n- For clarity, mask out or exclude areas that don’t need ultra-detail (e.g., background) from full upscale.  \n- Archive both base and upscaled versions in your workflow log.\n\n## 6. Troubleshooting  \n- VRAM errors: reduce tile size or lower upscale factor.  \n- Blurry upscales: increase refine strength or use better upscaler.  \n- Artefacts at tile seams: ensure tile overlap or use blending/feathering in final assembly.\n"
+      ],
+      "color": "#223",
+      "bgcolor": "#335"
+    },
+    {
+      "id": 68,
+      "type": "UltraCFG",
+      "pos": [
+        7030,
+        4700
+      ],
+      "size": [
+        270,
+        154
+      ],
+      "flags": {},
+      "order": 24,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "special_cfg",
+          "type": "DICT",
+          "links": [
+            103
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "UltraCFG"
+      },
+      "widgets_values": [
+        "early_boost",
+        5,
+        0,
+        0,
+        10000
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 78,
+      "type": "Note",
+      "pos": [
+        7030,
+        4890
+      ],
+      "size": [
+        210,
+        88
+      ],
+      "flags": {},
+      "order": 25,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {},
+      "widgets_values": [
+        "Ultra C F G is pretty much useless if you find this usefull for something then good for you!"
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    }
+  ],
+  "links": [
+    [
+      4,
+      2,
+      1,
+      3,
+      0,
+      "CLIP"
+    ],
+    [
+      5,
+      2,
+      1,
+      4,
+      0,
+      "CLIP"
+    ],
+    [
+      63,
+      2,
+      0,
+      34,
+      0,
+      "MODEL"
+    ],
+    [
+      64,
+      3,
+      0,
+      34,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      65,
+      4,
+      0,
+      34,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      66,
+      36,
+      0,
+      34,
+      7,
+      "DICT"
+    ],
+    [
+      75,
+      34,
+      0,
+      14,
+      0,
+      "IMAGE"
+    ],
+    [
+      76,
+      5,
+      0,
+      34,
+      3,
+      "LATENT"
+    ],
+    [
+      77,
+      2,
+      2,
+      34,
+      4,
+      "VAE"
+    ],
+    [
+      78,
+      34,
+      0,
+      46,
+      0,
+      "IMAGE"
+    ],
+    [
+      79,
+      48,
+      0,
+      34,
+      6,
+      "DICT"
+    ],
+    [
+      80,
+      38,
+      0,
+      34,
+      9,
+      "DICT"
+    ],
+    [
+      81,
+      40,
+      0,
+      34,
+      11,
+      "DICT"
+    ],
+    [
+      82,
+      42,
+      0,
+      34,
+      13,
+      "DICT"
+    ],
+    [
+      83,
+      49,
+      0,
+      50,
+      0,
+      "STATE_DICT"
+    ],
+    [
+      84,
+      50,
+      0,
+      51,
+      0,
+      "MODEL"
+    ],
+    [
+      85,
+      50,
+      1,
+      52,
+      0,
+      "CLIP"
+    ],
+    [
+      86,
+      50,
+      1,
+      53,
+      0,
+      "CLIP"
+    ],
+    [
+      87,
+      50,
+      2,
+      51,
+      4,
+      "VAE"
+    ],
+    [
+      88,
+      54,
+      0,
+      51,
+      3,
+      "LATENT"
+    ],
+    [
+      89,
+      52,
+      0,
+      51,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      90,
+      53,
+      0,
+      51,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      91,
+      51,
+      0,
+      55,
+      0,
+      "LATENT"
+    ],
+    [
+      92,
+      51,
+      2,
+      55,
+      1,
+      "VAE"
+    ],
+    [
+      93,
+      55,
+      0,
+      56,
+      0,
+      "IMAGE"
+    ],
+    [
+      94,
+      51,
+      1,
+      57,
+      0,
+      "IMAGE"
+    ],
+    [
+      96,
+      59,
+      1,
+      63,
+      0,
+      "CLIP"
+    ],
+    [
+      97,
+      61,
+      0,
+      63,
+      1,
+      "STRING"
+    ],
+    [
+      98,
+      59,
+      1,
+      64,
+      0,
+      "CLIP"
+    ],
+    [
+      99,
+      63,
+      0,
+      66,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      100,
+      64,
+      0,
+      66,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      101,
+      65,
+      0,
+      66,
+      6,
+      "DICT"
+    ],
+    [
+      102,
+      67,
+      0,
+      66,
+      7,
+      "SCRIPT"
+    ],
+    [
+      103,
+      68,
+      0,
+      66,
+      5,
+      "DICT"
+    ],
+    [
+      104,
+      59,
+      0,
+      66,
+      0,
+      "MODEL"
+    ],
+    [
+      105,
+      59,
+      2,
+      66,
+      4,
+      "VAE"
+    ],
+    [
+      106,
+      69,
+      0,
+      66,
+      3,
+      "LATENT"
+    ],
+    [
+      107,
+      66,
+      0,
+      70,
+      0,
+      "LATENT"
+    ],
+    [
+      108,
+      66,
+      1,
+      71,
+      0,
+      "IMAGE"
+    ],
+    [
+      109,
+      70,
+      0,
+      72,
+      0,
+      "IMAGE"
+    ],
+    [
+      110,
+      66,
+      2,
+      70,
+      1,
+      "VAE"
+    ],
+    [
+      111,
+      37,
+      0,
+      34,
+      8,
+      "SCRIPT"
+    ],
+    [
+      112,
+      39,
+      0,
+      34,
+      10,
+      "SCRIPT"
+    ],
+    [
+      113,
+      41,
+      0,
+      34,
+      12,
+      "SCRIPT"
+    ],
+    [
+      114,
+      43,
+      0,
+      34,
+      14,
+      "SCRIPT"
+    ]
+  ],
+  "groups": [
+    {
+      "id": 1,
+      "title": "\"XY tester\" sweeps X matrix",
+      "bounding": [
+        6780,
+        2040,
+        3820,
+        1600
+      ],
+      "color": "#3f789e",
+      "font_size": 24,
+      "flags": {}
+    },
+    {
+      "id": 2,
+      "title": "Merge example",
+      "bounding": [
+        4460,
+        3240,
+        2230,
+        1060
+      ],
+      "color": "#3f789e",
+      "font_size": 24,
+      "flags": {}
+    },
+    {
+      "id": 3,
+      "title": "Text 2 Image Example with Hi-Res + Noise Sweep",
+      "bounding": [
+        6780,
+        3740,
+        2350,
+        1460
+      ],
+      "color": "#3f789e",
+      "font_size": 24,
+      "flags": {}
+    },
+    {
+      "id": 4,
+      "title": "Info @ Guides",
+      "bounding": [
+        9270,
+        3730,
+        1330,
+        1490
+      ],
+      "color": "#3f789e",
+      "font_size": 24,
+      "flags": {}
+    }
+  ],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.26734863064141207,
+      "offset": [
+        -4856.319358713695,
+        -2645.570498737279
+      ]
+    },
+    "frontendVersion": "1.25.9",
+    "VHS_latentpreview": false,
+    "VHS_latentpreviewrate": 0,
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true
+  },
+  "version": 0.4
+}
