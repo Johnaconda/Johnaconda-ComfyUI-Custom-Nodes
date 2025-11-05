@@ -17,7 +17,7 @@
       ],
       "flags": {},
       "order": 35,
-      "mode": 2,
+      "mode": 0,
       "inputs": [
         {
           "name": "images",
@@ -47,7 +47,7 @@
       ],
       "flags": {},
       "order": 0,
-      "mode": 2,
+      "mode": 0,
       "inputs": [],
       "outputs": [
         {
@@ -101,7 +101,7 @@
       ],
       "flags": {},
       "order": 1,
-      "mode": 2,
+      "mode": 0,
       "inputs": [],
       "outputs": [
         {
@@ -134,7 +134,7 @@
       ],
       "flags": {},
       "order": 2,
-      "mode": 2,
+      "mode": 0,
       "inputs": [],
       "outputs": [
         {
@@ -180,7 +180,7 @@
       ],
       "flags": {},
       "order": 36,
-      "mode": 2,
+      "mode": 0,
       "inputs": [
         {
           "name": "images",
@@ -220,7 +220,7 @@
       ],
       "flags": {},
       "order": 26,
-      "mode": 2,
+      "mode": 0,
       "inputs": [
         {
           "name": "clip",
@@ -259,7 +259,7 @@
       ],
       "flags": {},
       "order": 27,
-      "mode": 2,
+      "mode": 0,
       "inputs": [
         {
           "name": "clip",
@@ -298,7 +298,7 @@
       ],
       "flags": {},
       "order": 3,
-      "mode": 2,
+      "mode": 0,
       "inputs": [],
       "outputs": [
         {
@@ -352,7 +352,7 @@
       ],
       "flags": {},
       "order": 4,
-      "mode": 2,
+      "mode": 0,
       "inputs": [],
       "outputs": [
         {
@@ -406,7 +406,7 @@
       ],
       "flags": {},
       "order": 5,
-      "mode": 2,
+      "mode": 0,
       "inputs": [],
       "outputs": [
         {
@@ -460,7 +460,7 @@
       ],
       "flags": {},
       "order": 31,
-      "mode": 2,
+      "mode": 0,
       "inputs": [
         {
           "name": "model",
@@ -589,62 +589,6 @@
       "bgcolor": "#533"
     },
     {
-      "id": 48,
-      "type": "UltraSamplerMatrix",
-      "pos": [
-        8860,
-        2330
-      ],
-      "size": [
-        270,
-        634
-      ],
-      "flags": {},
-      "order": 6,
-      "mode": 2,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "sampler_matrix",
-          "type": "DICT",
-          "links": [
-            79
-          ]
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "UltraSamplerMatrix"
-      },
-      "widgets_values": [
-        6,
-        "euler_ancestral",
-        "simple",
-        "S1",
-        true,
-        "euler_ancestral",
-        "normal",
-        "S2",
-        true,
-        "euler_ancestral",
-        "ddim_uniform",
-        "S3",
-        true,
-        "euler_ancestral",
-        "beta",
-        "S4",
-        true,
-        "euler_ancestral",
-        "linear_quadratic",
-        "S5",
-        true,
-        "euler_ancestral",
-        "kl_optimal",
-        "S6"
-      ],
-      "color": "#432",
-      "bgcolor": "#653"
-    },
-    {
       "id": 50,
       "type": "FromStateDictPro",
       "pos": [
@@ -692,6 +636,7 @@
       "properties": {
         "Node name for S&R": "FromStateDictPro"
       },
+      "widgets_values": [],
       "color": "#432",
       "bgcolor": "#653"
     },
@@ -746,7 +691,7 @@
         106
       ],
       "flags": {},
-      "order": 7,
+      "order": 6,
       "mode": 2,
       "inputs": [],
       "outputs": [
@@ -791,7 +736,8 @@
       "outputs": [],
       "properties": {
         "Node name for S&R": "PreviewImage"
-      }
+      },
+      "widgets_values": []
     },
     {
       "id": 55,
@@ -830,7 +776,8 @@
       ],
       "properties": {
         "Node name for S&R": "VAEDecode"
-      }
+      },
+      "widgets_values": []
     },
     {
       "id": 61,
@@ -844,8 +791,8 @@
         240
       ],
       "flags": {},
-      "order": 8,
-      "mode": 0,
+      "order": 7,
+      "mode": 2,
       "inputs": [],
       "outputs": [
         {
@@ -879,7 +826,7 @@
       ],
       "flags": {},
       "order": 28,
-      "mode": 0,
+      "mode": 2,
       "inputs": [
         {
           "name": "clip",
@@ -926,7 +873,7 @@
       ],
       "flags": {},
       "order": 29,
-      "mode": 0,
+      "mode": 2,
       "inputs": [
         {
           "name": "clip",
@@ -964,8 +911,8 @@
         98
       ],
       "flags": {},
-      "order": 9,
-      "mode": 0,
+      "order": 8,
+      "mode": 2,
       "inputs": [],
       "outputs": [
         {
@@ -1010,8 +957,8 @@
         106
       ],
       "flags": {},
-      "order": 10,
-      "mode": 0,
+      "order": 9,
+      "mode": 2,
       "inputs": [],
       "outputs": [
         {
@@ -1046,7 +993,7 @@
       ],
       "flags": {},
       "order": 40,
-      "mode": 0,
+      "mode": 2,
       "inputs": [
         {
           "name": "images",
@@ -1072,8 +1019,8 @@
         562
       ],
       "flags": {},
-      "order": 11,
-      "mode": 0,
+      "order": 10,
+      "mode": 2,
       "inputs": [],
       "outputs": [
         {
@@ -1126,8 +1073,8 @@
         682
       ],
       "flags": {},
-      "order": 12,
-      "mode": 0,
+      "order": 11,
+      "mode": 2,
       "inputs": [],
       "outputs": [
         {
@@ -1153,7 +1100,7 @@
         0.36,
         1,
         true,
-        664806714637229,
+        232018344576196,
         "randomize",
         "nearest-exact",
         "bicubic",
@@ -1185,7 +1132,7 @@
         200
       ],
       "flags": {},
-      "order": 13,
+      "order": 12,
       "mode": 2,
       "inputs": [],
       "outputs": [],
@@ -1327,7 +1274,7 @@
         "euler",
         "simple",
         1,
-        791831204972469,
+        435158469767619,
         "randomize",
         1,
         0,
@@ -1351,7 +1298,7 @@
         98
       ],
       "flags": {},
-      "order": 14,
+      "order": 13,
       "mode": 2,
       "inputs": [
         {
@@ -1391,7 +1338,7 @@
       ],
       "flags": {},
       "order": 32,
-      "mode": 0,
+      "mode": 2,
       "inputs": [
         {
           "name": "model",
@@ -1470,7 +1417,7 @@
         "euler_ancestral",
         "normal",
         1,
-        92819335606642,
+        518241107519496,
         "randomize",
         1.12,
         0,
@@ -1495,7 +1442,7 @@
       ],
       "flags": {},
       "order": 37,
-      "mode": 0,
+      "mode": 2,
       "inputs": [
         {
           "name": "images",
@@ -1524,7 +1471,7 @@
       ],
       "flags": {},
       "order": 38,
-      "mode": 0,
+      "mode": 2,
       "inputs": [
         {
           "name": "samples",
@@ -1548,7 +1495,8 @@
       ],
       "properties": {
         "Node name for S&R": "VAEDecode"
-      }
+      },
+      "widgets_values": []
     },
     {
       "id": 37,
@@ -1562,8 +1510,8 @@
         682
       ],
       "flags": {},
-      "order": 15,
-      "mode": 2,
+      "order": 14,
+      "mode": 4,
       "inputs": [],
       "outputs": [
         {
@@ -1589,7 +1537,7 @@
         0.45,
         1,
         true,
-        273347105746507,
+        711144003383489,
         "randomize",
         "nearest-exact",
         "bicubic",
@@ -1621,8 +1569,8 @@
         682
       ],
       "flags": {},
-      "order": 16,
-      "mode": 2,
+      "order": 15,
+      "mode": 4,
       "inputs": [],
       "outputs": [
         {
@@ -1648,7 +1596,7 @@
         0.45,
         1,
         true,
-        569320340242216,
+        585694129578156,
         "randomize",
         "nearest-exact",
         "bicubic",
@@ -1680,8 +1628,8 @@
         682
       ],
       "flags": {},
-      "order": 17,
-      "mode": 2,
+      "order": 16,
+      "mode": 4,
       "inputs": [],
       "outputs": [
         {
@@ -1707,7 +1655,7 @@
         0.45,
         1,
         true,
-        447668448194170,
+        300998740888779,
         "randomize",
         "nearest-exact",
         "bicubic",
@@ -1739,8 +1687,8 @@
         682
       ],
       "flags": {},
-      "order": 18,
-      "mode": 2,
+      "order": 17,
+      "mode": 4,
       "inputs": [],
       "outputs": [
         {
@@ -1766,7 +1714,7 @@
         0.45,
         1,
         true,
-        563176297312600,
+        908821128019382,
         "randomize",
         "nearest-exact",
         "bicubic",
@@ -1798,7 +1746,7 @@
         774
       ],
       "flags": {},
-      "order": 19,
+      "order": 18,
       "mode": 2,
       "inputs": [],
       "outputs": [
@@ -1881,29 +1829,6 @@
       ]
     },
     {
-      "id": 74,
-      "type": "Note",
-      "pos": [
-        4530,
-        3380
-      ],
-      "size": [
-        340,
-        800
-      ],
-      "flags": {},
-      "order": 20,
-      "mode": 2,
-      "inputs": [],
-      "outputs": [],
-      "properties": {},
-      "widgets_values": [
-        "# Model Merger Pro – User Guide\n\n## Step 1: Load the node  \n1. Open your workflow in ComfyUI.  \n2. Add the “Model Merger Pro” node (or whichever merger node you have installed).  \n3. Connect two model input nodes (Model A and Model B) into the merger node.\n\n## Step 2: Configure inputs  \n- **Model A** – The base model checkpoint.  \n- **Model B** – The model you want to blend into Model A.  \n- **Merge ratio / weight** – Set how much influence each model has.  \n- **Merge method** – Choose e.g. *linear interpolation (lerp)*, *spherical interpolation (slerp)*, or *gradient blending*.  \n- **Seed (optional)** – For reproducibility of the merge process.  \n- **Advanced options** (if supported):  \n  - Layer mask: Protect specific layers from being changed.  \n  - Sparsification/drop-rate: Control how many weights are changed or dropped.  \n  - Iterations: How many passes of merging to perform.  \n  - Clear cache: Free memory between steps to avoid out-of-VRAM errors.\n\n## Step 3: Execute the merge  \n1. Double-check all inputs and settings.  \n2. Click **Merge** or execute the node.  \n3. Monitor the log/output for any issues: missing keys, out-of-memory, mismatched dtype, etc.  \n4. Wait until the merged model checkpoint is created and saved (or outputs as a model object).\n\n## Step 4: Save and Version the merged model  \n- Give the merged model a clear name (e.g., `MergedModel_50A_50B.ckpt`).  \n- Save it in your checkpoints or model library folder.  \n- Record the merge settings used (ratio, method, seed, layers masked) in a text note alongside the model.\n\n## Step 5: Test the merged model  \n1. Load the merged model into a workflow (e.g., your illustration pipeline).  \n2. Use your standard test prompt (for example: *“A vibrant fantasy forest scene, a graceful white deer…”*).  \n3. Compare results between Model A, Model B, and the merged model.  \n4. Check for artifacts, style drift, unexpected behaviour.  \n5. If needed: revert to previous version or adjust the merge ratio/mask and repeat.\n\n## Step 6: Tweak and iterate  \n- If the merged model seems dominated by one source model, reduce that model’s weight.  \n- If certain features are lost (e.g., lighting, detail, subject behaviour), try locking those layers via mask so they remain from Model A or B.  \n- Use consistent seed and prompt when comparing versions to isolate differences.  \n- Keep a log of merge rounds (version, settings, observations) to build a “what works” history.\n\n## Troubleshooting common issues  \n- **Key-mismatch errors (“could not patch key …”)**: The two models must have compatible architecture (same UNet/CLIP config) or you’ll need to ignore missing keys.  \n- **CUDA Out of Memory**: Try enabling “clear cache” or reduce iterations. Use FP16 if available.  \n- **Artifacts or weird style**: Lower the influence of the “weaker” model or protect specific layers so they don’t get overwritten entirely.  \n- **No visible change**: Ensure the ratio is non‐zero for both A and B and test prompt is strong enough to reveal differences.\n\n---\n\n## Best Practices Summary  \n- Start with a 50/50 merge and compare.  \n- Use the same test prompt and seed when comparing versions.  \n- Record settings and version names diligently.  \n- Merge only when you’re satisfied with both base models.  \n- Retain original models as backups.\n\n---  \nEnd of guide.  "
-      ],
-      "color": "#432",
-      "bgcolor": "#653"
-    },
-    {
       "id": 77,
       "type": "Note",
       "pos": [
@@ -1915,7 +1840,7 @@
         630
       ],
       "flags": {},
-      "order": 21,
+      "order": 19,
       "mode": 0,
       "inputs": [],
       "outputs": [],
@@ -1939,7 +1864,7 @@
         630
       ],
       "flags": {},
-      "order": 22,
+      "order": 20,
       "mode": 0,
       "inputs": [],
       "outputs": [],
@@ -1963,7 +1888,7 @@
         630
       ],
       "flags": {},
-      "order": 23,
+      "order": 21,
       "mode": 0,
       "inputs": [],
       "outputs": [],
@@ -1987,8 +1912,8 @@
         154
       ],
       "flags": {},
-      "order": 24,
-      "mode": 0,
+      "order": 22,
+      "mode": 2,
       "inputs": [],
       "outputs": [
         {
@@ -2024,13 +1949,92 @@
         88
       ],
       "flags": {},
-      "order": 25,
-      "mode": 0,
+      "order": 23,
+      "mode": 2,
       "inputs": [],
       "outputs": [],
       "properties": {},
       "widgets_values": [
         "Ultra C F G is pretty much useless if you find this usefull for something then good for you!"
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 48,
+      "type": "UltraSamplerMatrix",
+      "pos": [
+        8860,
+        2330
+      ],
+      "size": [
+        270,
+        634
+      ],
+      "flags": {},
+      "order": 24,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "sampler_matrix",
+          "type": "DICT",
+          "links": [
+            79
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "UltraSamplerMatrix"
+      },
+      "widgets_values": [
+        6,
+        "gradient_estimation",
+        "simple",
+        "S1",
+        true,
+        "gradient_estimation",
+        "normal",
+        "S2",
+        true,
+        "gradient_estimation",
+        "ddim_uniform",
+        "S3",
+        true,
+        "gradient_estimation",
+        "beta",
+        "S4",
+        true,
+        "gradient_estimation",
+        "linear_quadratic",
+        "S5",
+        true,
+        "gradient_estimation",
+        "kl_optimal",
+        "S6"
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 74,
+      "type": "Note",
+      "pos": [
+        4530,
+        3380
+      ],
+      "size": [
+        340,
+        800
+      ],
+      "flags": {},
+      "order": 25,
+      "mode": 2,
+      "inputs": [],
+      "outputs": [],
+      "properties": {},
+      "widgets_values": [
+        "Select base models\n * ckpt_a and ckpt_b are required.\n * ckpt_c … ckpt_f optional (<none> means ignore).\n\nAdjust UNet blend weights\n * alpha_unet_b .. f = how much each extra model affects UNet layers (0 = off, 1 = full replace).\n * unet_down / mid / up = stage-specific scaling for lower, middle, upper UNet blocks.\n * curve_down / mid / up and curve_power = how the alpha ramps through those blocks (constant, A→B ramp, B→A ramp, centered).\n\nTune CLIP and VAE mix\n * alpha_clip_l – local text encoder (L).\n * alpha_clip_g – global text encoder (G).\n * alpha_clip_any – fallback for non-XL models.\n * alpha_vae – blending of VAE decoder/encoder weights.\n * clip_merge_mode = both | L only | G only | none.\n\nChoose merge math\n * mode_unet / mode_others:\n  - weighted_sum → linear blend A → B.\n  - difference → A + α × (B – A).\n  - slerp → spherical interpolation (better for large changes).\n  - norm_matched → normalizes tensor magnitudes before blend.\n * attn_filter: merge all weights or only attention (attn_only, qkv_only, conv_only).\n * shape_mode: strict = skip mismatched tensors, overlap = merge common slices.\n * spice: adds 0–0.2 randomized alpha nudge for extra contrast.\n\nAdvanced\n * prefer_ema: replace normal weights with EMA versions if available.\n * target_dtype: auto (keep source) or force float16 / float32 / bfloat16 for VRAM control.\n\nRun merge\n Outputs:\n * state_dict – in-memory merged weights.\n * summary – human-readable string of all settings.\n\nOptional post-steps\n * FromStateDictPro → load state_dict into MODEL / CLIP / VAE objects.\n * ApplyLoRAPro → apply a LoRA file onto the merged weights.\n * SaveMergedPro → write to .safetensors with metadata comment and timestamp.\n\nWhat each setting does internally\nSetting\tEffect\nalpha_unet_*\tPer-model weight for UNet layers. Controls visual style mix.\nunet_down/mid/up\tScales alpha for each stage; low layers affect structure, mid affects composition, up affects color.\ncurve_*\tShapes how α varies through block depth (“centered” emphasizes middle).\nattn_filter\tLimits merge to certain layer types (e.g. attention only).\nspice\tAdds minor random blend variance to avoid flat averages.\nshape_mode = overlap\tAllows partial merges between models with different layer sizes (e.g. XL ↔ SD2).\nprefer_ema\tChooses EMA weights when available (usually higher quality).\ntarget_dtype\tCasts tensors after merge to reduce VRAM or increase precision."
       ],
       "color": "#432",
       "bgcolor": "#653"
@@ -2455,10 +2459,10 @@
   "config": {},
   "extra": {
     "ds": {
-      "scale": 0.26734863064141207,
+      "scale": 0.8954302432552405,
       "offset": [
-        -4856.319358713695,
-        -2645.570498737279
+        -3153.138204869878,
+        -3064.577434895183
       ]
     },
     "frontendVersion": "1.25.9",
